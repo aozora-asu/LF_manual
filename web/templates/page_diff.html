@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}差分表示 - {{ page.title }} - {{ site_name }}{% endblock %}
+{% block content %}
+<h2>「{{ page.title }}」の差分</h2>
+<p>
+    <a href="{{ url_for('pages.view_page', slug=page.slug) }}">ページに戻る</a> |
+    <a href="{{ url_for('history.page_history', slug=page.slug) }}">履歴に戻る</a>
+</p>
+<p class="diff-info">
+    <span>旧: {{ commit_a[:8] }}</span> → <span>新: {{ commit_b[:8] }}</span>
+</p>
+<div class="diff-container">
+    <div class="diff-panel">
+        <h3>旧</h3>
+        <pre class="diff-content">{{ old_content }}</pre>
+    </div>
+    <div class="diff-panel">
+        <h3>新</h3>
+        <pre class="diff-content">{{ new_content }}</pre>
+    </div>
+</div>
+{% endblock %}

@@ -208,3 +208,7 @@ __marimo__/
 
 
 *.toml
+
+data/.git/
+data/comments/*.json
+data/pages/*.md

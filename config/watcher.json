@@ -1,0 +1,12 @@
+{
+  "interval_seconds": 300,
+  "targets": [
+    {
+      "name": "Example Site",
+      "url": "https://example.com/news",
+      "selector": "#main-content",
+      "detect_mode": "text_change",
+      "ignore_patterns": []
+    }
+  ]
+}

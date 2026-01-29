@@ -1,0 +1,26 @@
+{
+  "window": {
+    "width": 400,
+    "height": 200,
+    "background": "#ffffff",
+    "position": "bottom-right"
+  },
+  "title": {
+    "font_family": "Yu Gothic UI",
+    "font_size": 14,
+    "font_weight": "bold",
+    "color": "#333333"
+  },
+  "message": {
+    "font_family": "Yu Gothic UI",
+    "font_size": 11,
+    "color": "#555555"
+  },
+  "close_button": {
+    "text": "閉じる",
+    "font_family": "Yu Gothic UI",
+    "font_size": 10,
+    "background": "#4a90d9",
+    "color": "#ffffff"
+  }
+}

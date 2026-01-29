@@ -1,0 +1,43 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }} - {{ site_name }}{% endblock %}
+{% block content %}
+<article class="page-view">
+    <div class="page-header">
+        <h2>{{ page.title }}</h2>
+        {% if revision %}
+        <p class="revision-notice">リビジョン {{ revision }} を表示中</p>
+        {% endif %}
+        <div class="page-actions">
+            <a href="{{ url_for('pages.edit_page', slug=page.slug) }}" class="btn">編集</a>
+            <a href="{{ url_for('history.page_history', slug=page.slug) }}" class="btn btn-secondary">履歴</a>
+            <a href="{{ url_for('pages.print_page', slug=page.slug) }}" class="btn btn-secondary" target="_blank">印刷</a>
+            <form action="{{ url_for('pages.delete_page', slug=page.slug) }}" method="post" class="inline-form"
+                  onsubmit="return confirm('このページを削除しますか？');">
+                <button type="submit" class="btn btn-danger">削除</button>
+            </form>
+        </div>
+    </div>
+    {% if page.tags %}
+    <div class="page-tags">
+        {% for tag in page.tags %}<span class="tag">{{ tag }}</span>{% endfor %}
+    </div>
+    {% endif %}
+    <div class="page-body">
+        {{ html_content | safe }}
+    </div>
+    <div class="page-meta-footer">
+        <span>作成: {{ page.created }}</span>
+        <span>更新: {{ page.updated }}</span>
+    </div>
+</article>
+
+<section class="comments-section" data-slug="{{ page.slug }}">
+    <h3>コメント</h3>
+    <div id="comments-list"></div>
+    <form id="comment-form" class="comment-form">
+        <input type="text" id="comment-author" placeholder="名前（任意）">
+        <textarea id="comment-body" placeholder="コメントを入力..." required></textarea>
+        <button type="submit" class="btn">コメントを投稿</button>
+    </form>
+</section>
+{% endblock %}

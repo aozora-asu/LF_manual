@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    {% block head %}{% endblock %}
+</head>
+<body>
+    <header class="site-header">
+        <div class="header-inner">
+            <h1 class="site-title"><a href="{{ url_for('pages.index') }}">{{ site_name }}</a></h1>
+            <nav class="site-nav">
+                <a href="{{ url_for('pages.index') }}">ページ一覧</a>
+                <a href="{{ url_for('pages.new_page') }}">新規作成</a>
+                <form class="search-form" action="{{ url_for('search.search') }}" method="get">
+                    <input type="text" name="q" placeholder="検索..." value="{{ request.args.get('q', '') }}">
+                    <button type="submit">検索</button>
+                </form>
+            </nav>
+        </div>
+    </header>
+    <main class="content">
+        {% block content %}{% endblock %}
+    </main>
+    <footer class="site-footer">
+        <p>{{ site_name }} - WikiSuite</p>
+    </footer>
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script>
+    setInterval(function() {
+        fetch('/api/heartbeat', { method: 'POST' }).catch(function() {});
+    }, 5000);
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

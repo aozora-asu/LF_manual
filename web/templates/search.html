@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block title %}検索: {{ query }} - {{ site_name }}{% endblock %}
+{% block content %}
+<h2>検索結果{% if query %}: 「{{ query }}」{% endif %}</h2>
+{% if results %}
+<ul class="search-results">
+    {% for result in results %}
+    <li>
+        <a href="{{ url_for('pages.view_page', slug=result.slug) }}">{{ result.title }}</a>
+        {% if result.snippet %}
+        <p class="search-snippet">{{ result.snippet }}</p>
+        {% endif %}
+    </li>
+    {% endfor %}
+</ul>
+{% elif query %}
+<p class="empty-message">「{{ query }}」に一致するページが見つかりませんでした。</p>
+{% endif %}
+{% endblock %}

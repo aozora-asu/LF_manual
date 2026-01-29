@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>{{ page.title }} - {{ site_name }}</title>
+    <style>
+        body { font-family: "Yu Gothic UI", "Hiragino Sans", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+        @media print {
+            .no-print { display: none; }
+        }
+    </style>
+</head>
+<body>
+    <div class="no-print">
+        <button onclick="window.print()">印刷する</button>
+        <a href="{{ url_for('pages.view_page', slug=page.slug) }}">戻る</a>
+    </div>
+    <h1>{{ page.title }}</h1>
+    <div class="page-body">
+        {{ html_content | safe }}
+    </div>
+    <footer>
+        <p class="no-print">作成: {{ page.created }} / 更新: {{ page.updated }}</p>
+    </footer>
+</body>
+</html>
