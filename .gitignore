@@ -209,4 +209,10 @@ __marimo__/
 
 *.toml
 
-data/
+data/**
+!data/**/
+!data/**/.gitkeep
+
+state/**
+!state/**/
+!state/**/.gitkeep
