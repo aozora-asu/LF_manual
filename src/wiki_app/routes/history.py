@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from flask import Blueprint, render_template, redirect, url_for, abort
+from flask import Blueprint, render_template, redirect, url_for, abort, jsonify
 
 from src.common.config import load_config
 from src.wiki_app.services.repo_service import RepoService
@@ -18,7 +18,7 @@ def init_history(repo_service: RepoService, page_service: PageService) -> None:
     _page_service = page_service
 
 
-@history_bp.route("/pages/<slug>/history")
+@history_bp.route("/pages/<path:slug>/history")
 def page_history(slug):
     wiki_config = load_config("wiki")
     page = _page_service.get_page(slug)
@@ -39,7 +39,7 @@ def page_history(slug):
     )
 
 
-@history_bp.route("/pages/<slug>/history/<commit_id>")
+@history_bp.route("/pages/<path:slug>/history/<commit_id>")
 def page_revision(slug, commit_id):
     wiki_config = load_config("wiki")
     import markdown as md
@@ -68,7 +68,7 @@ def page_revision(slug, commit_id):
     )
 
 
-@history_bp.route("/pages/<slug>/diff/<commit_a>/<commit_b>")
+@history_bp.route("/pages/<path:slug>/diff/<commit_a>/<commit_b>")
 def page_diff(slug, commit_a, commit_b):
     wiki_config = load_config("wiki")
     page = _page_service.get_page(slug)
@@ -88,7 +88,7 @@ def page_diff(slug, commit_a, commit_b):
     )
 
 
-@history_bp.route("/pages/<slug>/restore/<commit_id>", methods=["POST"])
+@history_bp.route("/pages/<path:slug>/restore/<commit_id>", methods=["POST"])
 def restore_page(slug, commit_id):
     try:
         content_bytes = _repo_service.restore(commit_id, f"pages/{slug}.md")
@@ -103,3 +103,14 @@ def restore_page(slug, commit_id):
 
     _page_service.update_page(slug, title, post.content, tags)
     return redirect(url_for("pages.view_page", slug=slug))
+
+
+@history_bp.route("/api/history")
+def global_history():
+    """マニュアル全体のコミット履歴をJSONで返す"""
+    commits = _repo_service.log_all(max_count=30)
+    for c in commits:
+        c["timestamp_str"] = datetime.fromtimestamp(c["timestamp"]).strftime(
+            "%Y-%m-%d %H:%M"
+        )
+    return jsonify(commits)

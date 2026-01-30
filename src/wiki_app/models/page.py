@@ -11,7 +11,6 @@ class Page:
     body: str
     created: str = ""
     updated: str = ""
-    tags: list[str] = field(default_factory=list)
 
     def to_markdown(self) -> str:
         """front matter + body の Markdown テキストを生成する"""
@@ -19,8 +18,6 @@ class Page:
         post["title"] = self.title
         post["created"] = self.created or datetime.now().isoformat(timespec="seconds")
         post["updated"] = datetime.now().isoformat(timespec="seconds")
-        if self.tags:
-            post["tags"] = self.tags
         return frontmatter.dumps(post)
 
     @classmethod
@@ -33,5 +30,4 @@ class Page:
             body=post.content,
             created=post.get("created", ""),
             updated=post.get("updated", ""),
-            tags=post.get("tags", []),
         )

@@ -24,10 +24,14 @@
                 <td>{{ commit.timestamp_str }}</td>
                 <td>{{ commit.message }}</td>
                 <td>
-                    <a href="{{ url_for('history.page_revision', slug=page.slug, commit_id=commit.id) }}" class="btn btn-small">表示</a>
+                    <a href="{{ url_for('history.page_revision', slug=page.slug, commit_id=commit.id) }}" class="icon-btn icon-btn-sm" title="表示">
+                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-5 6-5 6 5 6 5-2.5 5-6 5-6-5-6-5z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
+                    </a>
                     <form action="{{ url_for('history.restore_page', slug=page.slug, commit_id=commit.id) }}" method="post" class="inline-form"
                           onsubmit="return confirm('このリビジョンに復元しますか？');">
-                        <button type="submit" class="btn btn-small btn-secondary">復元</button>
+                        <button type="submit" class="icon-btn icon-btn-sm" title="復元">
+                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2v4h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 6A5.5 5.5 0 117.5 12.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
+                        </button>
                     </form>
                 </td>
             </tr>

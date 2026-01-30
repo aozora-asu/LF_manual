@@ -10,23 +10,49 @@
 <body>
     <header class="site-header">
         <div class="header-inner">
-            <h1 class="site-title"><a href="{{ url_for('pages.index') }}">{{ site_name }}</a></h1>
+            <div class="header-left">
+                <button class="hamburger-btn" id="hamburger-btn" title="メニュー">
+                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect y="3" width="20" height="2" rx="1" fill="currentColor"/><rect y="9" width="20" height="2" rx="1" fill="currentColor"/><rect y="15" width="20" height="2" rx="1" fill="currentColor"/></svg>
+                </button>
+                <h1 class="site-title"><a href="{{ url_for('pages.index') }}">{{ site_name }}</a></h1>
+            </div>
             <nav class="site-nav">
-                <a href="{{ url_for('pages.index') }}">ページ一覧</a>
+                <a href="{{ url_for('pages.page_list') }}">ページ一覧</a>
                 <a href="{{ url_for('pages.new_page') }}">新規作成</a>
-                <form class="search-form" action="{{ url_for('search.search') }}" method="get">
-                    <input type="text" name="q" placeholder="検索..." value="{{ request.args.get('q', '') }}">
-                    <button type="submit">検索</button>
-                </form>
+                <div class="search-wrapper">
+                    <form class="search-form" action="{{ url_for('search.search') }}" method="get">
+                        <input type="text" name="q" id="search-input" placeholder="検索..." value="{{ request.args.get('q', '') }}" autocomplete="off">
+                        <button type="submit">検索</button>
+                    </form>
+                    <div class="search-dropdown" id="search-dropdown"></div>
+                </div>
             </nav>
         </div>
     </header>
-    <main class="content">
-        {% block content %}{% endblock %}
-    </main>
-    <footer class="site-footer">
-        <p>{{ site_name }} - WikiSuite</p>
-    </footer>
+    <div class="layout-wrapper" id="layout-wrapper">
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <span>目次</span>
+                </div>
+                <div class="sidebar-tree" id="sidebar-tree"></div>
+            </div>
+            <div class="sidebar-section">
+                <div class="sidebar-section-header">
+                    <span>更新履歴</span>
+                </div>
+                <div class="sidebar-history" id="sidebar-history"></div>
+            </div>
+        </aside>
+        <div class="main-area" id="main-area">
+            <main class="content">
+                {% block content %}{% endblock %}
+            </main>
+            <footer class="site-footer">
+                <p>{{ site_name }} - WikiSuite</p>
+            </footer>
+        </div>
+    </div>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
     setInterval(function() {

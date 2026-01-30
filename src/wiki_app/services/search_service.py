@@ -16,9 +16,9 @@ class SearchService:
         query_lower = query.lower()
         results = []
 
-        for md_file in self._pages_dir.glob("*.md"):
+        for md_file in self._pages_dir.rglob("*.md"):
             text = md_file.read_text(encoding="utf-8")
-            slug = md_file.stem
+            slug = str(md_file.relative_to(self._pages_dir).with_suffix(""))
             page = Page.from_markdown(slug, text)
 
             title_match = query_lower in page.title.lower()

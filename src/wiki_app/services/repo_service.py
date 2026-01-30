@@ -1,4 +1,5 @@
 import os
+import shutil
 from pathlib import Path
 
 import dulwich.porcelain as porcelain
@@ -16,14 +17,28 @@ class RepoService:
         self._ensure_repo()
 
     def _ensure_repo(self) -> None:
-        """リポジトリを開く。存在しなければ init する。"""
+        """リポジトリを開く。存在しなければ init する。
+        破損している場合は再初期化を試みる。"""
         self._repo_path.mkdir(parents=True, exist_ok=True)
         git_dir = self._repo_path / ".git"
         if git_dir.exists():
-            self._repo = Repo(str(self._repo_path))
+            try:
+                self._repo = Repo(str(self._repo_path))
+            except Exception as e:
+                logger.warning("Git リポジトリの読み込みに失敗、再初期化します: %s", e)
+                self.reinit()
         else:
             self._repo = Repo.init(str(self._repo_path))
             logger.info("Git リポジトリを初期化: %s", self._repo_path)
+
+    def reinit(self) -> None:
+        """Gitリポジトリを強制的に再初期化する。"""
+        git_dir = self._repo_path / ".git"
+        if git_dir.exists():
+            shutil.rmtree(git_dir)
+            logger.info("既存の .git ディレクトリを削除: %s", git_dir)
+        self._repo = Repo.init(str(self._repo_path))
+        logger.info("Git リポジトリを再初期化: %s", self._repo_path)
 
     def commit(self, file_path: str, content: bytes, message: str) -> str:
         """ファイルをステージしてコミット。コミットIDを返す。
@@ -41,6 +56,23 @@ class RepoService:
         commit_hex = commit_id.decode("ascii") if isinstance(commit_id, bytes) else str(commit_id)
         logger.info("コミット: %s - %s", commit_hex, message)
         return commit_hex
+
+    def log_all(self, max_count: int = 30) -> list[dict]:
+        """全ファイルのコミット履歴を返す。"""
+        results = []
+        try:
+            walker = self._repo.get_walker(max_entries=max_count)
+            for entry in walker:
+                commit = entry.commit
+                results.append({
+                    "id": commit.id.decode("ascii"),
+                    "message": commit.message.decode("utf-8"),
+                    "author": commit.author.decode("utf-8"),
+                    "timestamp": commit.author_time,
+                })
+        except KeyError:
+            pass
+        return results
 
     def log(self, file_path: str, max_count: int = 50) -> list[dict]:
         """指定ファイルのコミット履歴を返す。"""

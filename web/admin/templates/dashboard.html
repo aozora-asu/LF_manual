@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WikiSuite Admin</title>
+  <link rel="stylesheet" href="/static/css/admin.css">
+</head>
+<body>
+
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-header">
+      <h1>WikiSuite</h1>
+      <div class="subtitle">管理パネル</div>
+    </div>
+    <nav>
+      <a href="#" data-section="sec-dashboard" class="active">ダッシュボード</a>
+      <a href="#" data-section="sec-git">Git 管理</a>
+      <a href="#" data-section="sec-logs">ログ</a>
+      <a href="#" data-section="sec-config">設定編集</a>
+      <a href="#" data-section="sec-export">エクスポート</a>
+      <a href="#" data-section="sec-comments">コメント管理</a>
+      <a href="#" data-section="sec-state">State 整理</a>
+    </nav>
+    <div class="sidebar-footer">
+      <a href="http://127.0.0.1:8080" target="_blank">Wiki を開く</a>
+    </div>
+  </aside>
+
+  <!-- Main -->
+  <div class="main">
+    <header class="main-header" id="section-title">ダッシュボード</header>
+
+    <div class="content">
+
+      <!-- === Dashboard === -->
+      <div id="sec-dashboard" class="section active">
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="label">ページ数</div>
+            <div class="value" id="stat-pages">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">スレッド数</div>
+            <div class="value" id="stat-comments">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">ディスク使用量</div>
+            <div class="value" id="stat-disk">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Git コミット数</div>
+            <div class="value" id="stat-commits">-</div>
+          </div>
+          <div class="stat-card">
+            <div class="label">Watcher</div>
+            <div class="value" id="stat-watcher" style="font-size:16px">-</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Git === -->
+      <div id="sec-git" class="section">
+        <div class="panel">
+          <div class="panel-header">
+            <span>リポジトリ健全性</span>
+            <button class="btn btn-danger" id="btn-git-reinit">再初期化</button>
+          </div>
+          <div class="panel-body">
+            <div id="git-status-result" class="loading">チェック中...</div>
+            <pre id="git-status-details" style="margin-top:12px;font-size:12px;color:#6b7280"></pre>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">コミット履歴（最新50件）</div>
+          <div class="panel-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>メッセージ</th>
+                  <th>日時</th>
+                </tr>
+              </thead>
+              <tbody id="git-log-body">
+                <tr><td colspan="3" class="loading">読込中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Logs === -->
+      <div id="sec-logs" class="section">
+        <div class="panel">
+          <div class="panel-header">
+            <span>ログファイル閲覧</span>
+            <select id="log-file-select">
+              <option value="">-- ファイルを選択 --</option>
+            </select>
+          </div>
+          <div class="panel-body">
+            <div id="log-content" class="log-viewer">ファイルを選択してください</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Config === -->
+      <div id="sec-config" class="section">
+        <div class="panel">
+          <div class="panel-header">
+            <span>設定ファイル編集</span>
+            <div>
+              <select id="config-file-select">
+                <option value="">-- 設定ファイルを選択 --</option>
+              </select>
+              <button class="btn btn-primary" id="btn-config-save">保存</button>
+            </div>
+          </div>
+          <div class="panel-body">
+            <textarea id="config-textarea" class="config-editor" placeholder="設定ファイルを選択してください"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Export === -->
+      <div id="sec-export" class="section">
+        <div class="panel">
+          <div class="panel-header">ページエクスポート</div>
+          <div class="panel-body">
+            <p style="margin-bottom:16px;font-size:13px;color:#6b7280">
+              data/pages/ 内のすべてのMarkdownファイルをZIPアーカイブとしてダウンロードします。
+            </p>
+            <button class="btn btn-success" id="btn-export-zip">ZIPダウンロード</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Comments === -->
+      <div id="sec-comments" class="section">
+        <div class="panel">
+          <div class="panel-header">コメントファイル一覧</div>
+          <div class="panel-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>スラッグ</th>
+                  <th>ファイル名</th>
+                  <th>スレッド数</th>
+                  <th>コメント数</th>
+                </tr>
+              </thead>
+              <tbody id="comments-list-body">
+                <tr><td colspan="3" class="loading">読込中...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <span>孤児コメント</span>
+            <button class="btn btn-danger" id="btn-delete-orphans" disabled>一括削除</button>
+          </div>
+          <div class="panel-body">
+            <div id="orphans-list" class="loading">チェック中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === State === -->
+      <div id="sec-state" class="section">
+        <div class="panel">
+          <div class="panel-header">Watcher Snapshots</div>
+          <div class="panel-body">
+            <p style="font-size:13px;margin-bottom:8px">
+              ファイル数: <strong id="state-snapshots-count">-</strong>
+              &nbsp;/&nbsp;
+              サイズ: <strong id="state-snapshots-size">-</strong>
+            </p>
+            <button class="btn btn-danger" id="btn-delete-snapshots">全削除</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">Watcher Events</div>
+          <div class="panel-body">
+            <p style="font-size:13px;margin-bottom:8px">
+              ファイル数: <strong id="state-events-count">-</strong>
+              &nbsp;/&nbsp;
+              サイズ: <strong id="state-events-size">-</strong>
+            </p>
+            <button class="btn btn-danger" id="btn-delete-events">全削除</button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="/static/js/admin.js"></script>
+</body>
+</html>

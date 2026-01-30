@@ -1,4 +1,4 @@
-from flask import Blueprint, request, render_template
+from flask import Blueprint, request, render_template, jsonify
 
 from src.common.config import load_config
 from src.wiki_app.services.search_service import SearchService
@@ -24,3 +24,11 @@ def search():
         results=results,
         site_name=wiki_config.get("site_name", "Wiki"),
     )
+
+
+@search_bp.route("/api/search")
+def search_api():
+    """インクリメンタルサーチ用JSON API"""
+    query = request.args.get("q", "")
+    results = _search_service.search(query) if query else []
+    return jsonify(results)

@@ -1,4 +1,5 @@
 import time
+from datetime import datetime
 
 from flask import Flask, jsonify
 
@@ -39,7 +40,7 @@ def create_app() -> Flask:
     search_service = SearchService()
 
     init_pages(page_service)
-    init_comments(comment_service)
+    init_comments(comment_service, page_service)
     init_history(repo_service, page_service)
     init_search(search_service)
 
@@ -47,6 +48,17 @@ def create_app() -> Flask:
     app.register_blueprint(comments_bp)
     app.register_blueprint(history_bp)
     app.register_blueprint(search_bp)
+
+    @app.template_filter("fmt_datetime")
+    def fmt_datetime(value: str) -> str:
+        """ISO文字列を yyyy-M-dd H:mm:ss (ゼロ埋めなし) に変換する"""
+        if not value:
+            return ""
+        try:
+            dt = datetime.fromisoformat(value)
+            return f"{dt.year}-{dt.month}-{dt.day:02d} {dt.hour}:{dt.minute:02d}:{dt.second:02d}"
+        except (ValueError, TypeError):
+            return value
 
     @app.route("/api/heartbeat", methods=["POST"])
     def heartbeat():

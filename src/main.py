@@ -15,6 +15,7 @@ from src.common.paths import ensure_dirs, get_state_dir, get_base_dir, get_alert
 from src.common.config import load_config
 from src.common.logger import get_logger
 from src.wiki_app.app import create_app
+from src.admin_app.app import create_admin_app
 from src.watcher.scheduler import start_watcher, stop_watcher
 
 logger = get_logger("app")
@@ -159,6 +160,22 @@ def _show_alert(event: dict) -> None:
     root.mainloop()
 
 
+def _start_admin_thread() -> threading.Thread:
+    """Admin サーバをバックグラウンドスレッドで起動する"""
+    admin_config = load_config("admin")
+    admin_app = create_admin_app()
+    host = admin_config.get("host", "127.0.0.1")
+    port = admin_config.get("port", 8081)
+    t = threading.Thread(
+        target=lambda: admin_app.run(host=host, port=port, use_reloader=False),
+        daemon=True,
+        name="admin",
+    )
+    t.start()
+    logger.info("Admin サーバ起動: %s:%s", host, port)
+    return t
+
+
 def _start_heartbeat_monitor_thread() -> threading.Thread:
     """ブラウザからのハートビートが途絶えたらプロセスを終了するスレッド"""
     t = threading.Thread(target=_heartbeat_monitor, daemon=True, name="heartbeat-monitor")
@@ -194,6 +211,7 @@ def main() -> None:
     _start_watcher_thread()
     _start_alert_poller_thread()
     _start_heartbeat_monitor_thread()
+    _start_admin_thread()
 
     host = app_config.get("host", "127.0.0.1")
     port = app_config.get("port", 8080)

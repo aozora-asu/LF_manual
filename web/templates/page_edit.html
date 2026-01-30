@@ -1,11 +1,5 @@
 {% extends "base.html" %}
 {% block title %}{{ page.title }} を編集 - {{ site_name }}{% endblock %}
-{% block head %}
-<!-- EasyMDE: vendor/ にファイルを配置してください -->
-<!-- ダウンロード: https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.css -->
-<!-- ダウンロード: https://cdn.jsdelivr.net/npm/easymde/dist/easymde.min.js -->
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/easymde.min.css') }}">
-{% endblock %}
 {% block content %}
 <h2>「{{ page.title }}」を編集</h2>
 <form method="post" class="page-form">
@@ -14,12 +8,8 @@
         <input type="text" id="title" name="title" value="{{ page.title }}" required>
     </div>
     <div class="form-group">
-        <label for="tags">タグ（カンマ区切り）</label>
-        <input type="text" id="tags" name="tags" value="{{ page.tags | join(', ') }}">
-    </div>
-    <div class="form-group">
-        <label for="editor">本文</label>
-        <textarea id="editor" name="body">{{ page.body }}</textarea>
+        <label>本文</label>
+        <textarea id="editor" name="body" style="display:none">{{ page.body }}</textarea>
     </div>
     <div class="form-actions">
         <button type="submit" class="btn">保存</button>
@@ -28,23 +18,8 @@
 </form>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='vendor/easymde.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 <script>
-if (typeof EasyMDE !== 'undefined') {
-    var easyMDE = new EasyMDE({
-        element: document.getElementById('editor'),
-        spellChecker: false,
-        renderingConfig: {
-            sanitize: false
-        },
-        toolbar: [
-            "bold", "italic", "heading", "|",
-            "unordered-list", "ordered-list", "|",
-            "link", "image", "table", "|",
-            "preview", "side-by-side", "fullscreen", "|",
-            "guide"
-        ]
-    });
-}
+initWysiwygEditor('editor', {{ html_body | tojson }});
 </script>
 {% endblock %}

@@ -1,47 +1,34 @@
 {% extends "base.html" %}
 {% block title %}新規作成 - {{ site_name }}{% endblock %}
-{% block head %}
-<link rel="stylesheet" href="{{ url_for('static', filename='vendor/easymde.min.css') }}">
-{% endblock %}
 {% block content %}
 <h2>新規ページ作成</h2>
 <form method="post" class="page-form">
+    <div class="form-group">
+        <label for="directory">ディレクトリ（空欄でルート直下）</label>
+        <input type="text" id="directory" name="directory" list="directory-list" placeholder="例: 日勤">
+        <datalist id="directory-list">
+            {% for dir in directories %}
+            <option value="{{ dir }}">
+            {% endfor %}
+        </datalist>
+    </div>
     <div class="form-group">
         <label for="title">タイトル</label>
         <input type="text" id="title" name="title" required>
     </div>
     <div class="form-group">
-        <label for="tags">タグ（カンマ区切り）</label>
-        <input type="text" id="tags" name="tags">
-    </div>
-    <div class="form-group">
-        <label for="editor">本文</label>
-        <textarea id="editor" name="body"></textarea>
+        <label>本文</label>
+        <textarea id="editor" name="body" style="display:none"></textarea>
     </div>
     <div class="form-actions">
         <button type="submit" class="btn">作成</button>
-        <a href="{{ url_for('pages.index') }}" class="btn btn-secondary">キャンセル</a>
+        <a href="{{ url_for('pages.page_list') }}" class="btn btn-secondary">キャンセル</a>
     </div>
 </form>
 {% endblock %}
 {% block scripts %}
-<script src="{{ url_for('static', filename='vendor/easymde.min.js') }}"></script>
+<script src="{{ url_for('static', filename='js/editor.js') }}"></script>
 <script>
-if (typeof EasyMDE !== 'undefined') {
-    var easyMDE = new EasyMDE({
-        element: document.getElementById('editor'),
-        spellChecker: false,
-        renderingConfig: {
-            sanitize: false
-        },
-        toolbar: [
-            "bold", "italic", "heading", "|",
-            "unordered-list", "ordered-list", "|",
-            "link", "image", "table", "|",
-            "preview", "side-by-side", "fullscreen", "|",
-            "guide"
-        ]
-    });
-}
+initWysiwygEditor('editor', '');
 </script>
 {% endblock %}
