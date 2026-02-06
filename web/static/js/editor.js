@@ -1,4 +1,4 @@
-/* WikiSuite WYSIWYG エディタ - 編集可能 */
+/* LF リンローマニュアル WYSIWYG エディタ - 編集可能 */
 
 (function () {
     'use strict';
@@ -28,6 +28,7 @@
         noteWarn: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M8 1.5L1 14h14L8 1.5z" stroke="#d97706" stroke-width="1.3" stroke-linejoin="round"/><path d="M8 6v4M8 11.5v.5" stroke="#d97706" stroke-width="1.5" stroke-linecap="round"/></svg>',
         noteImportant: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="8" r="6.5" stroke="#7c3aed" stroke-width="1.3"/><path d="M8 4.5v5M8 11v.5" stroke="#7c3aed" stroke-width="1.8" stroke-linecap="round"/></svg>',
         noteTip: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="8" cy="6.5" r="4.5" stroke="#059669" stroke-width="1.3"/><path d="M6 11v1.5a2 2 0 004 0V11" stroke="#059669" stroke-width="1.3"/><path d="M6 13.5h4" stroke="#059669" stroke-width="1.2" stroke-linecap="round"/></svg>',
+        checkbox: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="2" width="12" height="12" rx="2" stroke="currentColor" stroke-width="1.4"/><path d="M5 8.5l2 2 4-4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>',
         alignLeft: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M2 6.5h8M2 10h10M2 13.5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
         alignCenter: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M4 6.5h8M3 10h10M5 13.5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>',
         alignRight: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 3h12M6 6.5h8M4 10h10M8 13.5h6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>'
@@ -48,6 +49,7 @@
         '|',
         { id: 'ul', title: '箇条書きリスト', icon: 'ul', cmd: 'insertUnorderedList' },
         { id: 'ol', title: '番号付きリスト', icon: 'ol', cmd: 'insertOrderedList' },
+        { id: 'checkbox', title: 'チェックボックス', icon: 'checkbox', custom: 'checkbox' },
         '|',
         { id: 'alignLeft', title: '左揃え', icon: 'alignLeft', cmd: 'justifyLeft' },
         { id: 'alignCenter', title: '中央揃え', icon: 'alignCenter', cmd: 'justifyCenter' },
@@ -71,6 +73,35 @@
         '|',
         { id: 'hr', title: '水平線', icon: 'hr', custom: 'hr' }
     ];
+
+    var TOOL_TIPS = {
+        paragraph: '本文を挿入',
+        bold: '太字のテキストを挿入',
+        italic: '斜体のテキストを挿入',
+        strikethrough: '取り消し線のテキストを挿入',
+        h1: '見出し1を挿入',
+        h2: '見出し2を挿入',
+        h3: '見出し3を挿入',
+        ul: '箇条書きリストを挿入',
+        ol: '番号付きリストを挿入',
+        checkbox: 'チェックボックスを挿入',
+        alignLeft: '左揃えの段落を作成',
+        alignCenter: '中央揃えの段落を作成',
+        alignRight: '右揃えの段落を作成',
+        blockquote: '引用ブロックを挿入',
+        code: 'インラインコードを挿入',
+        codeblock: 'コードブロックを挿入',
+        textColor: '文字色を指定して挿入',
+        highlight: 'ハイライトを挿入',
+        noteInfo: 'ノート（情報）を挿入',
+        noteWarn: 'ノート（警告）を挿入',
+        noteImportant: 'ノート（重要）を挿入',
+        noteTip: 'ノート（ヒント）を挿入',
+        link: 'リンクを挿入',
+        image: '画像を挿入',
+        table: 'テーブルを挿入',
+        hr: '水平線を挿入'
+    };
 
     /* ---- カラーパレット ---- */
 
@@ -136,7 +167,7 @@
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'wysiwyg-toolbar-btn';
-            btn.title = tool.title;
+            btn.title = TOOL_TIPS[tool.id] || tool.title;
             btn.dataset.toolId = tool.id;
 
             if (tool.icon && ICONS[tool.icon]) {
@@ -197,6 +228,40 @@
             }
         });
 
+        // Backspace: ブロック先頭でインデントがあれば先にインデントを解除
+        editArea.addEventListener('keydown', function (e) {
+            if (e.key === 'Backspace') {
+                var sel = window.getSelection();
+                if (!sel.rangeCount || !sel.isCollapsed) return;
+
+                // カーソルがブロック先頭にあるか判定
+                var block = sel.anchorNode;
+                while (block && block !== editArea && !isBlockElement(block)) {
+                    block = block.parentNode;
+                }
+                if (!block || block === editArea) return;
+
+                var indent = parseInt(block.style.marginLeft, 10) || 0;
+                if (indent <= 0) return;
+
+                // カーソルがブロックの一番先頭にあるかチェック
+                var atStart = false;
+                if (sel.anchorOffset === 0) {
+                    var firstText = getFirstTextNode(block);
+                    if (!firstText || firstText === sel.anchorNode) {
+                        atStart = true;
+                    }
+                }
+
+                if (atStart) {
+                    e.preventDefault();
+                    var newIndent = Math.max(0, indent - 32);
+                    block.style.marginLeft = newIndent ? newIndent + 'px' : '';
+                    return;
+                }
+            }
+        });
+
         // Enterキー制御
         editArea.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' && !e.shiftKey) {
@@ -209,18 +274,325 @@
                         node = node.parentNode;
                     }
                 }
-                e.preventDefault();
-                document.execCommand('insertParagraph', false);
+
+                // 現在のブロック要素を取得
+                var block = null;
+                if (sel.rangeCount > 0) {
+                    block = sel.anchorNode;
+                    while (block && block !== editArea && !isBlockElement(block)) {
+                        block = block.parentNode;
+                    }
+                    if (block === editArea) block = null;
+                }
+
+                // P以外のブロックで中身が空ならPに戻す
+                if (block && block.nodeName !== 'P') {
+                    var content = block.textContent || '';
+                    if (content.trim() === '') {
+                        e.preventDefault();
+                        var p = document.createElement('p');
+                        p.innerHTML = '<br>';
+                        block.parentNode.replaceChild(p, block);
+                        var range = document.createRange();
+                        range.setStart(p, 0);
+                        range.collapse(true);
+                        sel.removeAllRanges();
+                        sel.addRange(range);
+                        return;
+                    }
+                }
+
+                // 通常のEnter: ブラウザデフォルト（同じタグを継続）に任せる
+                return;
             }
             if (e.key === 'Tab') {
                 e.preventDefault();
-                if (e.shiftKey) {
-                    document.execCommand('outdent', false);
-                } else {
-                    document.execCommand('indent', false);
+                var sel = window.getSelection();
+                if (!sel.rangeCount) return;
+
+                // LI内かチェック
+                var li = null;
+                var node = sel.anchorNode;
+                while (node && node !== editArea) {
+                    if (node.nodeName === 'LI') { li = node; break; }
+                    node = node.parentNode;
+                }
+                if (li) {
+                    if (e.shiftKey) {
+                        unindentListItem(li, sel);
+                    } else {
+                        indentListItem(li, sel);
+                    }
+                    return;
+                }
+
+                // LI以外: ブロック要素のmargin-leftで段下げ
+                var block = sel.anchorNode;
+                while (block && block !== editArea && !isBlockElement(block)) {
+                    block = block.parentNode;
+                }
+                if (block && block !== editArea) {
+                    var current = parseInt(block.style.marginLeft, 10) || 0;
+                    if (e.shiftKey) {
+                        block.style.marginLeft = Math.max(0, current - 32) ? Math.max(0, current - 32) + 'px' : '';
+                    } else {
+                        block.style.marginLeft = (current + 32) + 'px';
+                    }
                 }
             }
         });
+
+        /* ---- Markdown記法の自動変換 ---- */
+
+        editArea.addEventListener('input', function () {
+            var sel = window.getSelection();
+            if (!sel.rangeCount || !sel.isCollapsed) return;
+
+            var anchorNode = sel.anchorNode;
+            if (!anchorNode || anchorNode.nodeType !== 3) return;
+
+            var text = anchorNode.textContent;
+            var offset = sel.anchorOffset;
+
+            // 現在のブロック要素を取得
+            var block = anchorNode.parentNode;
+            while (block && block !== editArea && !isBlockElement(block)) {
+                block = block.parentNode;
+            }
+            if (!block || block === editArea) return;
+            // リスト内やPRE内では変換しない
+            if (isInsideTag(block, editArea, ['LI', 'PRE', 'CODE'])) return;
+
+            // テキストノードがブロックの最初のテキストかチェック
+            var firstText = getFirstTextNode(block);
+            if (firstText !== anchorNode) return;
+
+            var converted = false;
+
+            // # + スペース → H1〜H6
+            var headingMatch = text.match(/^(#{1,6})\s/);
+            if (headingMatch) {
+                var level = headingMatch[1].length;
+                var rest = text.substring(headingMatch[0].length);
+                converted = convertBlock(block, 'H' + level, rest, sel);
+            }
+
+            // - + スペース または * + スペース → 箇条書きリスト
+            if (!converted && /^[-*]\s/.test(text)) {
+                var rest = text.substring(2);
+                converted = convertBlockToList(block, 'UL', rest, sel);
+            }
+
+            // 1. + スペース → 番号付きリスト
+            if (!converted && /^\d+\.\s/.test(text)) {
+                var match = text.match(/^\d+\.\s/);
+                var rest = text.substring(match[0].length);
+                converted = convertBlockToList(block, 'OL', rest, sel);
+            }
+
+            // > + スペース → 引用ブロック
+            if (!converted && /^>\s/.test(text)) {
+                var rest = text.substring(2);
+                converted = convertBlock(block, 'BLOCKQUOTE', rest, sel);
+            }
+
+            // ``` → コードブロック
+            if (!converted && /^```$/.test(text.trim())) {
+                block.innerHTML = '<pre><code>コードを入力</code></pre>';
+                // PRE内のcodeにカーソルを移動
+                var codeEl = block.querySelector('code');
+                if (codeEl) {
+                    var range = document.createRange();
+                    range.selectNodeContents(codeEl);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
+                // blockがP等ならPREに置き換える
+                if (block.nodeName !== 'PRE') {
+                    var pre = block.querySelector('pre');
+                    if (pre) {
+                        block.parentNode.replaceChild(pre, block);
+                        // 後続に空pを追加
+                        var newP = document.createElement('p');
+                        newP.innerHTML = '<br>';
+                        pre.parentNode.insertBefore(newP, pre.nextSibling);
+                    }
+                }
+                converted = true;
+            }
+
+            // --- → 水平線
+            if (!converted && /^---$/.test(text.trim())) {
+                var hr = document.createElement('hr');
+                var newP = document.createElement('p');
+                newP.innerHTML = '<br>';
+                block.parentNode.insertBefore(hr, block);
+                block.parentNode.insertBefore(newP, block);
+                block.parentNode.removeChild(block);
+                var range = document.createRange();
+                range.setStart(newP, 0);
+                range.collapse(true);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                converted = true;
+            }
+        });
+
+        function isBlockElement(el) {
+            var blocks = ['P', 'DIV', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+                          'BLOCKQUOTE', 'PRE', 'LI', 'UL', 'OL'];
+            return blocks.indexOf(el.nodeName) !== -1;
+        }
+
+        function isInsideTag(el, root, tags) {
+            var node = el;
+            while (node && node !== root) {
+                if (tags.indexOf(node.nodeName) !== -1) return true;
+                node = node.parentNode;
+            }
+            return false;
+        }
+
+        function getFirstTextNode(el) {
+            for (var i = 0; i < el.childNodes.length; i++) {
+                var child = el.childNodes[i];
+                if (child.nodeType === 3 && child.textContent.length > 0) return child;
+                if (child.nodeType === 1) {
+                    var found = getFirstTextNode(child);
+                    if (found) return found;
+                }
+            }
+            return null;
+        }
+
+        function convertBlock(block, newTag, content, sel) {
+            var newEl = document.createElement(newTag);
+            newEl.textContent = content;
+            block.parentNode.replaceChild(newEl, block);
+            // カーソルを末尾に
+            var textNode = newEl.firstChild || newEl.appendChild(document.createTextNode(''));
+            var range = document.createRange();
+            range.setStart(textNode, textNode.length);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            return true;
+        }
+
+        function convertBlockToList(block, listTag, content, sel) {
+            var list = document.createElement(listTag);
+            var li = document.createElement('li');
+            li.textContent = content;
+            list.appendChild(li);
+            block.parentNode.replaceChild(list, block);
+            // カーソルを末尾に
+            var textNode = li.firstChild || li.appendChild(document.createTextNode(''));
+            var range = document.createRange();
+            range.setStart(textNode, textNode.length);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+            return true;
+        }
+
+        function replaceBlockContent(block, content, sel) {
+            block.textContent = content;
+            var textNode = block.firstChild || block.appendChild(document.createTextNode(''));
+            var range = document.createRange();
+            range.setStart(textNode, textNode.length);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
+
+        /* ---- リスト入れ子操作 ---- */
+
+        function indentListItem(li, sel) {
+            // 前の兄弟LIが必要（最初のLIはインデント不可）
+            var prevLi = li.previousElementSibling;
+            if (!prevLi || prevLi.nodeName !== 'LI') return;
+
+            // 親のリストタイプ(UL/OL)を継承
+            var parentList = li.parentNode;
+            var listTag = parentList.nodeName; // 'UL' or 'OL'
+
+            // 前のLI内に既にサブリストがあればそこに追加、なければ新規作成
+            var subList = null;
+            for (var i = prevLi.childNodes.length - 1; i >= 0; i--) {
+                var child = prevLi.childNodes[i];
+                if (child.nodeType === 1 && (child.nodeName === 'UL' || child.nodeName === 'OL')) {
+                    subList = child;
+                    break;
+                }
+            }
+            if (!subList) {
+                subList = document.createElement(listTag);
+                prevLi.appendChild(subList);
+            }
+
+            // LIを移動
+            parentList.removeChild(li);
+            subList.appendChild(li);
+
+            // カーソル復元
+            restoreCursorToLi(li, sel);
+        }
+
+        function unindentListItem(li, sel) {
+            var parentList = li.parentNode; // UL or OL
+            if (!parentList || (parentList.nodeName !== 'UL' && parentList.nodeName !== 'OL')) return;
+
+            var grandParentLi = parentList.parentNode; // 親のLI
+            if (!grandParentLi || grandParentLi.nodeName !== 'LI') return;
+
+            var greatGrandParent = grandParentLi.parentNode; // さらに上のUL/OL
+            if (!greatGrandParent) return;
+
+            // liの後ろにある兄弟LIをliのサブリストに移す
+            var siblingsAfter = [];
+            var next = li.nextElementSibling;
+            while (next) {
+                siblingsAfter.push(next);
+                next = next.nextElementSibling;
+            }
+            if (siblingsAfter.length > 0) {
+                var newSubList = document.createElement(parentList.nodeName);
+                siblingsAfter.forEach(function (s) {
+                    parentList.removeChild(s);
+                    newSubList.appendChild(s);
+                });
+                li.appendChild(newSubList);
+            }
+
+            // liをgrandParentLiの後ろに移動
+            parentList.removeChild(li);
+            greatGrandParent.insertBefore(li, grandParentLi.nextSibling);
+
+            // 元のサブリストが空になったら削除
+            if (parentList.children.length === 0) {
+                grandParentLi.removeChild(parentList);
+            }
+
+            // カーソル復元
+            restoreCursorToLi(li, sel);
+        }
+
+        function restoreCursorToLi(li, sel) {
+            var textNode = getFirstTextNode(li);
+            if (!textNode) {
+                textNode = document.createTextNode('');
+                if (li.firstChild && (li.firstChild.nodeName === 'UL' || li.firstChild.nodeName === 'OL')) {
+                    li.insertBefore(textNode, li.firstChild);
+                } else {
+                    li.appendChild(textNode);
+                }
+            }
+            var range = document.createRange();
+            range.setStart(textNode, textNode.length);
+            range.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        }
 
         /* ---- ツールバー色インジケーター更新 ---- */
 
@@ -354,6 +726,11 @@
                         '<tr><td>データ4</td><td>データ5</td><td>データ6</td></tr></tbody></table><p><br></p>');
                     break;
 
+                case 'checkbox':
+                    document.execCommand('insertHTML', false,
+                        '<ul><li><label class="check-item"><input type="checkbox"> チェック項目</label></li></ul><p><br></p>');
+                    break;
+
                 case 'hr':
                     document.execCommand('insertHTML', false, '<hr><p><br></p>');
                     break;
@@ -462,20 +839,24 @@
             switch (tag) {
                 case 'P':
                     var pAlign = child.style.textAlign || '';
+                    var pIndent = child.style.marginLeft || '';
                     if (pAlign && pAlign !== 'left' && pAlign !== 'start') {
-                        // 揃え付きは md_in_html 形式で保存
-                        result += '\n<div style="text-align:' + pAlign + '" markdown="1">\n\n' + inner.trim() + '\n\n</div>\n';
+                        var pStyle = 'text-align:' + pAlign;
+                        if (pIndent) pStyle += ';margin-left:' + pIndent;
+                        result += '\n<div style="' + pStyle + '" markdown="1">\n\n' + inner.trim() + '\n\n</div>\n';
+                    } else if (pIndent) {
+                        result += '\n<div style="margin-left:' + pIndent + '" markdown="1">\n\n' + inner.trim() + '\n\n</div>\n';
                     } else {
                         result += '\n' + inner.trim() + '\n';
                     }
                     break;
 
-                case 'H1': result += '\n# ' + inner.trim() + '\n'; break;
-                case 'H2': result += '\n## ' + inner.trim() + '\n'; break;
-                case 'H3': result += '\n### ' + inner.trim() + '\n'; break;
-                case 'H4': result += '\n#### ' + inner.trim() + '\n'; break;
-                case 'H5': result += '\n##### ' + inner.trim() + '\n'; break;
-                case 'H6': result += '\n###### ' + inner.trim() + '\n'; break;
+                case 'H1': result += wrapIndent(child, '\n# ' + inner.trim() + '\n'); break;
+                case 'H2': result += wrapIndent(child, '\n## ' + inner.trim() + '\n'); break;
+                case 'H3': result += wrapIndent(child, '\n### ' + inner.trim() + '\n'); break;
+                case 'H4': result += wrapIndent(child, '\n#### ' + inner.trim() + '\n'); break;
+                case 'H5': result += wrapIndent(child, '\n##### ' + inner.trim() + '\n'); break;
+                case 'H6': result += wrapIndent(child, '\n###### ' + inner.trim() + '\n'); break;
 
                 case 'STRONG': case 'B':
                     result += '**' + inner + '**'; break;
@@ -521,6 +902,15 @@
                 case 'TABLE': result += '\n' + convertTable(child) + '\n'; break;
                 case 'HR': result += '\n---\n'; break;
                 case 'BR': result += '\n'; break;
+                case 'LABEL':
+                    result += inner;
+                    break;
+                case 'INPUT':
+                    var inputType = (child.getAttribute('type') || '').toLowerCase();
+                    if (inputType === 'checkbox') {
+                        result += child.checked ? '[x] ' : '[ ] ';
+                    }
+                    break;
 
                 case 'MARK':
                     var bgColor = child.style.backgroundColor || '';
@@ -635,7 +1025,7 @@
         var allowed = ['P', 'BR', 'B', 'STRONG', 'I', 'EM', 'S', 'DEL', 'U',
             'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
             'UL', 'OL', 'LI',
-            'A', 'IMG', 'CODE', 'PRE', 'MARK', 'SPAN',
+            'A', 'IMG', 'CODE', 'PRE', 'MARK', 'SPAN', 'LABEL', 'INPUT',
             'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD',
             'BLOCKQUOTE', 'HR', 'DIV', 'FONT'];
 
@@ -647,6 +1037,14 @@
                         while (child.firstChild) node.insertBefore(child.firstChild, child);
                         node.removeChild(child);
                     } else {
+                        if (child.nodeName === 'INPUT') {
+                            var inputType = (child.getAttribute('type') || '').toLowerCase();
+                            if (inputType !== 'checkbox') {
+                                node.removeChild(child);
+                                return;
+                            }
+                            child.setAttribute('type', 'checkbox');
+                        }
                         if (['MARK', 'SPAN', 'FONT', 'DIV', 'P'].indexOf(child.nodeName) === -1) {
                             child.removeAttribute('style');
                             child.removeAttribute('class');
@@ -661,6 +1059,14 @@
     }
 
     /* ---- ユーティリティ ---- */
+
+    function wrapIndent(el, md) {
+        var indent = el.style ? el.style.marginLeft : '';
+        if (indent) {
+            return '\n<div style="margin-left:' + indent + '" markdown="1">\n' + md.trim() + '\n\n</div>\n';
+        }
+        return md;
+    }
 
     function escapeHtml(text) {
         var div = document.createElement('div');

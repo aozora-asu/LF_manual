@@ -1,5 +1,5 @@
 {
-  "duration_seconds": 30,
+  "duration_seconds": 0,
   "play_sound": true,
   "sound_file": "alert_ui/sound/alert.wav",
   "topmost": true

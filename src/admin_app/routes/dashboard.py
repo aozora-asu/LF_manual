@@ -4,6 +4,7 @@ import os
 from flask import Blueprint, render_template, jsonify
 
 from src.common.paths import get_data_dir, get_state_dir
+from src.common.config import load_config
 from src.common.logger import get_logger
 from src.wiki_app.services.repo_service import RepoService
 from src.wiki_app.services.page_service import PageService
@@ -40,6 +41,8 @@ def stats():
     disk_usage = 0
     commit_count = 0
     watcher_status = "不明"
+    config_targets = []
+    config_names: set[str] = set()
 
     try:
         pages = _page_service.list_pages()
@@ -82,11 +85,34 @@ def stats():
         logger.warning("コミット数の取得に失敗: %s", e)
 
     try:
+        config = load_config("watcher")
+        config_targets = [
+            t for t in config.get("targets", []) if t.get("enabled", True)
+        ]
+        config_names = {t.get("name") for t in config_targets if t.get("name")}
+    except Exception as e:
+        logger.warning("Watcher設定の読み込みに失敗: %s", e)
+        config_targets = []
+        config_names = set()
+
+    try:
         index_path = get_state_dir() / "watcher" / "index.json"
         if index_path.exists():
             with open(index_path, "r", encoding="utf-8") as f:
                 watcher_index = json.load(f)
-            watcher_status = f"監視中 ({len(watcher_index)} ターゲット)"
+            targets = watcher_index.get("targets", {})
+            if config_names:
+                targets = {
+                    h: t for h, t in targets.items() if t.get("name") in config_names
+                }
+            error_count = sum(
+                1 for t in targets.values() if t.get("status") == "error"
+            )
+            target_total = len(config_targets) if config_names else len(targets)
+            if error_count > 0:
+                watcher_status = f"監視中 ({target_total}件 / {error_count}件エラー)"
+            else:
+                watcher_status = f"監視中 ({target_total}件)"
         else:
             watcher_status = "未稼働"
     except Exception as e:

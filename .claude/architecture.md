@@ -1,4 +1,4 @@
-# WikiSuite アーキテクチャ設計
+# LF リンローマニュアル アーキテクチャ設計
 
 本ドキュメントは CLAUDE.md（設計憲章）に基づく具体的な実装設計である。
 
@@ -184,7 +184,7 @@ Flask の `static_folder` を `web/static/` に設定し、CSS / JS / favicon / 
 
 ```json
 {
-  "site_name": "社内Wiki",
+  "site_name": "LF リンローマニュアル",
   "default_page": "home",
   "markdown_extensions": ["tables", "fenced_code", "nl2br"]
 }
@@ -517,21 +517,21 @@ pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz, a.scripts,
-    name='WikiSuite',
+    name='LF リンローマニュアル',
     console=False,        # コンソールウィンドウ非表示
 )
 
 coll = COLLECT(
     exe, a.binaries, a.datas,
-    name='WikiSuite',
+    name='LF リンローマニュアル',
 )
 ```
 
 ### 8.2 配布ディレクトリ構成
 
 ```text
-dist/WikiSuite/
-├─ WikiSuite.exe          # 実行ファイル
+dist/LF リンローマニュアル/
+├─ LF リンローマニュアル.exe          # 実行ファイル
 ├─ _internal/             # PyInstaller ランタイム
 ├─ config/                # 設定ファイル（編集可）
 │  ├─ app.json

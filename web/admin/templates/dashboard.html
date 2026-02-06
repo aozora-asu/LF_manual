@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>WikiSuite Admin</title>
+  <title>LF リンローマニュアル Admin</title>
   <link rel="stylesheet" href="/static/css/admin.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
   <!-- Sidebar -->
   <aside class="sidebar">
     <div class="sidebar-header">
-      <h1>WikiSuite</h1>
+      <h1>LF リンローマニュアル</h1>
       <div class="subtitle">管理パネル</div>
     </div>
     <nav>
@@ -21,6 +21,7 @@
       <a href="#" data-section="sec-config">設定編集</a>
       <a href="#" data-section="sec-export">エクスポート</a>
       <a href="#" data-section="sec-comments">コメント管理</a>
+      <a href="#" data-section="sec-watcher">Web監視</a>
       <a href="#" data-section="sec-state">State 整理</a>
     </nav>
     <div class="sidebar-footer">
@@ -120,6 +121,17 @@
             </div>
           </div>
           <div class="panel-body">
+            <div class="config-modes">
+              <button class="btn btn-secondary" id="btn-config-mode-gui">GUI</button>
+              <button class="btn btn-secondary" id="btn-config-mode-json">JSON</button>
+            </div>
+            <div class="config-gui hidden" id="config-gui">
+              <div class="config-gui-header">
+                <div>watcher.json をGUIで編集します</div>
+                <button class="btn btn-primary" id="btn-config-apply">GUI → JSON 反映</button>
+              </div>
+              <div id="watcher-form"></div>
+            </div>
             <textarea id="config-textarea" class="config-editor" placeholder="設定ファイルを選択してください"></textarea>
           </div>
         </div>
@@ -133,7 +145,13 @@
             <p style="margin-bottom:16px;font-size:13px;color:#6b7280">
               data/pages/ 内のすべてのMarkdownファイルをZIPアーカイブとしてダウンロードします。
             </p>
-            <button class="btn btn-success" id="btn-export-zip">ZIPダウンロード</button>
+            <div style="display:flex;gap:10px;flex-wrap:wrap">
+              <button class="btn btn-success" id="btn-export-zip">ZIPダウンロード</button>
+              <button class="btn btn-secondary" id="btn-export-pdf">PDF（印刷）</button>
+            </div>
+            <p style="margin-top:10px;font-size:12px;color:#94a3b8">
+              PDF（印刷）は印刷ダイアログで「PDFに保存」を選んでください。
+            </p>
           </div>
         </div>
       </div>
@@ -166,6 +184,76 @@
           </div>
           <div class="panel-body">
             <div id="orphans-list" class="loading">チェック中...</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- === Watcher === -->
+      <div id="sec-watcher" class="section">
+        <div class="panel">
+          <div class="panel-header">Web監視の稼働場所と連携</div>
+          <div class="panel-body">
+            <ul class="info-list">
+              <li>監視は <code>LF リンローマニュアル.exe</code>（または <code>python main.py</code>）起動時に、バックグラウンドスレッドとして常駐します（<code>src/watcher/scheduler.py</code>）。</li>
+              <li>監視設定は <code>config/watcher.json</code>。変更を反映するにはアプリ再起動が必要です。</li>
+              <li>稼働状況は <code>state/watcher/index.json</code> の <code>last_run</code> 更新で判断します。</li>
+              <li>差分スナップショットは <code>state/watcher/snapshots/</code> に保存されます。</li>
+              <li>変更イベントは <code>state/watcher/events/</code> に書き出され、Alert Poller が表示後に削除します。</li>
+              <li>ログは <code>logs/watcher.log</code> に出力されます。</li>
+            </ul>
+            <div class="info-note">index.json が生成・更新されない場合は監視が停止している可能性があります。</div>
+          </div>
+        </div>
+
+        <!-- ステータス概要 -->
+        <div class="panel">
+          <div class="panel-header">
+            <span>監視ステータス</span>
+            <span class="status-badge" id="watcher-overall-status">確認中...</span>
+          </div>
+          <div class="panel-body">
+            <div class="watcher-meta">
+              <div class="watcher-meta-item">
+                <span class="watcher-meta-label">夜間停止</span>
+                <span class="watcher-meta-value" id="watcher-night-stop">-</span>
+              </div>
+              <div class="watcher-meta-item">
+                <span class="watcher-meta-label">最終実行</span>
+                <span class="watcher-meta-value" id="watcher-last-run">-</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- ターゲット一覧 -->
+        <div class="panel">
+          <div class="panel-header">監視ターゲット</div>
+          <div class="panel-body">
+            <div id="watcher-targets" class="watcher-targets-grid">
+              <div class="loading">読込中...</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- イベント履歴 -->
+        <div class="panel">
+          <div class="panel-header">
+            <span>検出イベント（最新20件）</span>
+            <span id="watcher-event-total" style="font-size:12px;color:#6b7280;font-weight:400"></span>
+          </div>
+          <div class="panel-body table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>検出日時</th>
+                  <th>ターゲット</th>
+                  <th>サマリー</th>
+                </tr>
+              </thead>
+              <tbody id="watcher-events-body">
+                <tr><td colspan="3" class="loading">読込中...</td></tr>
+              </tbody>
+            </table>
           </div>
         </div>
       </div>

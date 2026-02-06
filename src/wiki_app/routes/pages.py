@@ -112,6 +112,30 @@ def page_list():
     )
 
 
+@pages_bp.route("/pages/print/all")
+def print_all_pages():
+    """全ページを印刷用にまとめて表示する"""
+    wiki_config = load_config("wiki")
+    pages = _page_service.list_pages()
+    rendered_pages = []
+    for page in pages:
+        html_content = _render_md(page.body)
+        rendered_pages.append({
+            "title": page.title,
+            "slug": page.slug,
+            "created": page.created,
+            "updated": page.updated,
+            "html": html_content,
+        })
+    auto = request.args.get("autoprint") == "1"
+    return render_template(
+        "page_print_all.html",
+        pages=rendered_pages,
+        site_name=wiki_config.get("site_name", "Wiki"),
+        autoprint=auto,
+    )
+
+
 @pages_bp.route("/pages/new", methods=["GET", "POST"])
 def new_page():
     wiki_config = load_config("wiki")

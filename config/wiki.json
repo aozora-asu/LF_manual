@@ -1,5 +1,5 @@
 {
-  "site_name": "社内Wiki",
+  "site_name": "LF リンローマニュアル",
   "default_page": "home",
   "markdown_extensions": ["tables", "fenced_code", "nl2br", "md_in_html"]
 }

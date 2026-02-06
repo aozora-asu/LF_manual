@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <title>{{ site_name }} - 全ページ印刷</title>
+    <style>
+      body {
+        font-family: "Yu Gothic UI", "Hiragino Sans", sans-serif;
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+        color: #111827;
+      }
+      .no-print {
+        margin-bottom: 16px;
+      }
+      .page-block {
+        page-break-before: always;
+        page-break-after: always;
+        margin-bottom: 24px;
+      }
+      .page-block:first-child {
+        page-break-before: auto;
+      }
+      .page-block:last-child {
+        page-break-after: auto;
+      }
+      h1 {
+        border-bottom: 2px solid #333;
+        padding-bottom: 8px;
+        margin-bottom: 12px;
+      }
+      .page-body {
+        line-height: 1.7;
+      }
+      .page-meta {
+        margin-top: 12px;
+        font-size: 12px;
+        color: #6b7280;
+      }
+      @media print {
+        .no-print {
+          display: none;
+        }
+        body {
+          max-width: none;
+          margin: 0;
+          padding: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="no-print">
+      <button onclick="window.print()">PDFに保存（印刷）</button>
+    </div>
+    {% for page in pages %}
+      <section class="page-block">
+        <h1>{{ page.title }}</h1>
+        <div class="page-body">
+          {{ page.html | safe }}
+        </div>
+        <div class="page-meta">
+          作成: {{ page.created }} / 更新: {{ page.updated }} / {{ page.slug }}
+        </div>
+      </section>
+    {% endfor %}
+    {% if autoprint %}
+      <script>
+        window.addEventListener("load", function () {
+          setTimeout(function () {
+            window.print();
+          }, 300);
+        });
+      </script>
+    {% endif %}
+  </body>
+</html>

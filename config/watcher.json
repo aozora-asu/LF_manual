@@ -1,12 +1,50 @@
 {
-  "interval_seconds": 300,
+  "night_stop": {
+    "enabled": false,
+    "start_hour": 0,
+    "end_hour": 4
+  },
   "targets": [
     {
-      "name": "Example Site",
-      "url": "https://example.com/news",
-      "selector": "#main-content",
-      "detect_mode": "text_change",
-      "ignore_patterns": []
+      "name": "電車運行情報",
+      "type": "train",
+      "enabled": true,
+      "interval_seconds": 10,
+      "url": "https://transit.yahoo.co.jp/diainfo/area/4",
+      "detail_base_url": "https://transit.yahoo.co.jp",
+      "selector": "#mdStatusTroubleLine",
+      "detail_selector": "#mdServiceStatus",
+      "alert_statuses": [
+        "運転見合わせ",
+        "運転再開"
+      ]
+    },
+    {
+      "name": "気象警報",
+      "type": "weather",
+      "enabled": true,
+      "interval_seconds": 10,
+      "warning_url": "https://www.jma.go.jp/bosai/warning/data/warning/map.json",
+      "area_url": "https://www.jma.go.jp/bosai/common/const/area.json",
+      "warning_codes": [
+        "02",
+        "03",
+        "04",
+        "05",
+        "06",
+        "07",
+        "08"
+      ]
+    },
+    {
+      "name": "停電情報",
+      "type": "outage",
+      "enabled": true,
+      "interval_seconds": 10,
+      "base_url": "https://teideninfo.tepco.co.jp/flash/xml",
+      "area_code": "00000000000",
+      "auth_token": "sk3PT518",
+      "threshold": 0
     }
   ]
 }

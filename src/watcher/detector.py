@@ -17,6 +17,11 @@ def get_target_hash(target_name: str) -> str:
     return hashlib.sha256(target_name.encode("utf-8")).hexdigest()[:16]
 
 
+def snapshot_exists(target_name: str) -> bool:
+    """スナップショットの有無を返す"""
+    return _get_snapshot_path(target_name).exists()
+
+
 def detect_change(
     target_name: str,
     current_text: str,

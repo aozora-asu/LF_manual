@@ -8,6 +8,7 @@ from dulwich.repo import Repo
 from src.common.logger import get_logger
 
 logger = get_logger("wiki")
+_COMMITTER = "LF リンローマニュアル <wiki@local>"
 
 
 class RepoService:
@@ -50,8 +51,8 @@ class RepoService:
         commit_id = porcelain.commit(
             self._repo,
             message=message.encode("utf-8"),
-            committer=b"WikiSuite <wiki@local>",
-            author=b"WikiSuite <wiki@local>",
+            committer=_COMMITTER.encode("utf-8"),
+            author=_COMMITTER.encode("utf-8"),
         )
         commit_hex = commit_id.decode("ascii") if isinstance(commit_id, bytes) else str(commit_id)
         logger.info("コミット: %s - %s", commit_hex, message)
@@ -144,8 +145,8 @@ class RepoService:
         commit_id = porcelain.commit(
             self._repo,
             message=message.encode("utf-8"),
-            committer=b"WikiSuite <wiki@local>",
-            author=b"WikiSuite <wiki@local>",
+            committer=_COMMITTER.encode("utf-8"),
+            author=_COMMITTER.encode("utf-8"),
         )
         commit_hex = commit_id.decode("ascii") if isinstance(commit_id, bytes) else str(commit_id)
         logger.info("削除コミット: %s - %s", commit_hex, message)

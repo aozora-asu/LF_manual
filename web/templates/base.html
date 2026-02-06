@@ -1,64 +1,203 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="ja">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>{% block title %}{{ site_name }}{% endblock %}</title>
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
     {% block head %}{% endblock %}
-</head>
-<body>
+  </head>
+  <body>
     <header class="site-header">
-        <div class="header-inner">
-            <div class="header-left">
-                <button class="hamburger-btn" id="hamburger-btn" title="メニュー">
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect y="3" width="20" height="2" rx="1" fill="currentColor"/><rect y="9" width="20" height="2" rx="1" fill="currentColor"/><rect y="15" width="20" height="2" rx="1" fill="currentColor"/></svg>
-                </button>
-                <h1 class="site-title"><a href="{{ url_for('pages.index') }}">{{ site_name }}</a></h1>
-            </div>
-            <nav class="site-nav">
-                <a href="{{ url_for('pages.page_list') }}">ページ一覧</a>
-                <a href="{{ url_for('pages.new_page') }}">新規作成</a>
-                <div class="search-wrapper">
-                    <form class="search-form" action="{{ url_for('search.search') }}" method="get">
-                        <input type="text" name="q" id="search-input" placeholder="検索..." value="{{ request.args.get('q', '') }}" autocomplete="off">
-                        <button type="submit">検索</button>
-                    </form>
-                    <div class="search-dropdown" id="search-dropdown"></div>
-                </div>
-            </nav>
+      <div class="header-inner">
+        <div class="header-left">
+          <button class="hamburger-btn" id="hamburger-btn" title="メニュー">
+            <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+              <rect y="3" width="20" height="2" rx="1" fill="currentColor" />
+              <rect y="9" width="20" height="2" rx="1" fill="currentColor" />
+              <rect y="15" width="20" height="2" rx="1" fill="currentColor" />
+            </svg>
+          </button>
+          <h1 class="site-title">
+            <a href="{{ url_for('pages.index') }}">{{ site_name }}</a>
+          </h1>
         </div>
+        <nav class="site-nav">
+          <a href="{{ url_for('pages.page_list') }}">ページ一覧</a>
+          <a href="{{ url_for('pages.new_page') }}">新規作成</a>
+          <a href="{{ admin_url }}#sec-config" target="_blank" rel="noopener"
+            >監視条件編集</a
+          >
+          <div class="watcher-indicator" id="watcher-indicator" title="Web監視">
+            <span class="watcher-dot" id="watcher-dot"></span>
+            <span class="watcher-label" id="watcher-label">監視</span>
+          </div>
+          <div class="search-wrapper">
+            <form
+              class="search-form"
+              action="{{ url_for('search.search') }}"
+              method="get"
+            >
+              <input
+                type="text"
+                name="q"
+                id="search-input"
+                placeholder="検索..."
+                value="{{ request.args.get('q', '') }}"
+                autocomplete="off"
+              />
+              <button type="submit">検索</button>
+            </form>
+            <div class="search-dropdown" id="search-dropdown"></div>
+          </div>
+        </nav>
+      </div>
     </header>
     <div class="layout-wrapper" id="layout-wrapper">
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">
-                    <span>目次</span>
-                </div>
-                <div class="sidebar-tree" id="sidebar-tree"></div>
-            </div>
-            <div class="sidebar-section">
-                <div class="sidebar-section-header">
-                    <span>更新履歴</span>
-                </div>
-                <div class="sidebar-history" id="sidebar-history"></div>
-            </div>
-        </aside>
-        <div class="main-area" id="main-area">
-            <main class="content">
-                {% block content %}{% endblock %}
-            </main>
-            <footer class="site-footer">
-                <p>{{ site_name }} - WikiSuite</p>
-            </footer>
+      <aside class="sidebar" id="sidebar">
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <span>目次</span>
+          </div>
+          <div class="sidebar-tree" id="sidebar-tree"></div>
         </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
+            <span>更新履歴</span>
+          </div>
+          <div class="sidebar-history" id="sidebar-history"></div>
+        </div>
+      </aside>
+      <div class="main-area" id="main-area">
+        <section class="watcher-board" id="watcher-board">
+          <div class="watcher-board-header">
+            <div>
+              <h2>Web監視状況</h2>
+            </div>
+            <div class="watcher-night-controls">
+              <label class="watcher-night-check">
+                <input type="checkbox" id="watcher-night-enabled" />
+                <span>夜間停止</span>
+              </label>
+              <div class="watcher-night-range">
+                <span>停止</span>
+                <input type="number" min="0" max="23" id="watcher-night-start" />
+                <span>再開</span>
+                <input type="number" min="0" max="23" id="watcher-night-end" />
+              </div>
+            </div>
+          </div>
+          <div class="watcher-board-note" id="watcher-board-note"></div>
+          <div class="watcher-board-grid" id="watcher-board-grid">
+            <div class="watcher-board-loading">読み込み中...</div>
+          </div>
+        </section>
+        <main class="content">{% block content %}{% endblock %}</main>
+        <footer class="site-footer">
+          <p>{{ site_name }}</p>
+        </footer>
+      </div>
     </div>
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script>
-    setInterval(function() {
-        fetch('/api/heartbeat', { method: 'POST' }).catch(function() {});
-    }, 5000);
+      (function () {
+        function loadSessionId() {
+          var key = "wiki-session-id";
+          var existing = sessionStorage.getItem(key);
+          if (existing) return existing;
+          var id =
+            window.crypto && crypto.randomUUID
+              ? "wiki:" + crypto.randomUUID()
+              : "wiki:" +
+                Date.now().toString(36) +
+                Math.random().toString(36).slice(2);
+          sessionStorage.setItem(key, id);
+          return id;
+        }
+
+        var sessionId = loadSessionId();
+
+        function postHeartbeat(action) {
+          fetch("/api/heartbeat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              action: action,
+              session_id: sessionId,
+              client: "wiki",
+            }),
+            keepalive: action === "close",
+          }).catch(function () {});
+        }
+
+        function sendClose() {
+          var payload = JSON.stringify({
+            action: "close",
+            session_id: sessionId,
+            client: "wiki",
+          });
+          if (navigator.sendBeacon) {
+            navigator.sendBeacon(
+              "/api/heartbeat",
+              new Blob([payload], { type: "application/json" }),
+            );
+          } else {
+            postHeartbeat("close");
+          }
+        }
+
+        postHeartbeat("open");
+        setInterval(function () {
+          postHeartbeat("ping");
+        }, 5000);
+        window.addEventListener("pagehide", sendClose);
+        window.addEventListener("beforeunload", sendClose);
+      })();
+
+      function updateWatcherStatus() {
+        fetch("/api/watcher/status")
+          .then(function (r) {
+            return r.json();
+          })
+          .then(function (data) {
+            var dot = document.getElementById("watcher-dot");
+            var label = document.getElementById("watcher-label");
+            var indicator = document.getElementById("watcher-indicator");
+            if (!dot || !label) return;
+            if (data.running) {
+              if (data.error_count > 0) {
+                dot.className = "watcher-dot watcher-warn";
+                label.textContent = "監視中（異常あり）";
+                indicator.title =
+                  "Web監視: " +
+                  data.target_count +
+                  "件監視中 / " +
+                  data.error_count +
+                  "件エラー\n最終実行: " +
+                  data.last_run;
+              } else {
+                dot.className = "watcher-dot watcher-ok";
+                label.textContent = "監視中";
+                indicator.title =
+                  "Web監視: " +
+                  data.target_count +
+                  "件監視中\n最終実行: " +
+                  data.last_run;
+              }
+            } else {
+              dot.className = "watcher-dot watcher-off";
+              label.textContent = "未稼働";
+              indicator.title = "Web監視: 未稼働";
+            }
+          })
+          .catch(function () {});
+      }
+      updateWatcherStatus();
+      setInterval(updateWatcherStatus, 30000);
     </script>
     {% block scripts %}{% endblock %}
-</body>
+  </body>
 </html>

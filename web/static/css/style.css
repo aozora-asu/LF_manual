@@ -1,4 +1,4 @@
-/* WikiSuite スタイルシート - 編集可能 */
+/* LF リンローマニュアル スタイルシート - 編集可能 */
 /* Glassmorphism Design */
 
 :root {
@@ -120,6 +120,37 @@ a:hover {
   background: rgba(255, 255, 255, 0.1);
   text-decoration: none;
 }
+/* Watcher indicator */
+.watcher-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: var(--radius-xs);
+  cursor: default;
+  font-size: 0.82em;
+  color: var(--header-text);
+  opacity: 0.85;
+}
+.watcher-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  background: #6b7280;
+}
+.watcher-dot.watcher-ok {
+  background: #22c55e;
+  box-shadow: 0 0 6px rgba(34, 197, 94, 0.6);
+}
+.watcher-dot.watcher-warn {
+  background: #f59e0b;
+  box-shadow: 0 0 6px rgba(245, 158, 11, 0.6);
+}
+.watcher-dot.watcher-off {
+  background: #6b7280;
+}
+
 .search-wrapper {
   position: relative;
 }
@@ -283,19 +314,10 @@ a:hover {
   display: flex;
   flex-direction: column;
   min-height: 0;
-}
-.sidebar-section:first-child {
   flex: 1;
   overflow: hidden;
-  display: flex;
-  flex-direction: column;
 }
 .sidebar-section:last-child {
-  flex: 0 0 auto;
-  max-height: 40%;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
   border-top: 1px solid rgba(0, 0, 0, 0.06);
 }
 .sidebar-section-header {
@@ -672,7 +694,7 @@ a:hover {
 
 /* Content */
 .content {
-  max-width: 1000px;
+  width: calc(100% - 48px);
   margin: 24px auto;
   padding: 0 24px;
   width: 100%;
@@ -963,6 +985,18 @@ a:hover {
   padding: 0;
   border-radius: 0;
 }
+.page-body ul,
+.page-body ol {
+  padding-left: 1.8em;
+  margin: 0.4em 0;
+}
+.page-body ul ul,
+.page-body ul ol,
+.page-body ol ul,
+.page-body ol ol {
+  padding-left: 1.8em;
+  margin: 0.2em 0;
+}
 .page-body blockquote {
   border-left: 3px solid var(--primary-color);
   margin: 1em 0;
@@ -1162,7 +1196,9 @@ a:hover {
   border-bottom: 2px solid #f59e0b;
   cursor: pointer;
   border-radius: 2px;
-  transition: background 0.2s, border-color 0.2s;
+  transition:
+    background 0.2s,
+    border-color 0.2s;
 }
 .comment-highlight:hover {
   background: rgba(251, 191, 36, 0.4);
@@ -1197,7 +1233,9 @@ a:hover {
   font-size: 0.85em;
   font-weight: 500;
   color: var(--primary-color);
-  transition: background 0.2s, box-shadow 0.2s;
+  transition:
+    background 0.2s,
+    box-shadow 0.2s;
   user-select: none;
 }
 .comment-float-btn:hover {
@@ -1414,7 +1452,9 @@ a:hover {
   background: none;
   color: var(--text-secondary);
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
   position: relative;
 }
 .wysiwyg-toolbar-btn:hover {
@@ -1469,8 +1509,24 @@ a:hover {
   padding: 28px;
   outline: none;
 }
+.wysiwyg-content ul,
+.wysiwyg-content ol {
+  padding-left: 1.8em;
+  margin: 0.4em 0;
+}
+.wysiwyg-content ul ul,
+.wysiwyg-content ul ol,
+.wysiwyg-content ol ul,
+.wysiwyg-content ol ol {
+  padding-left: 1.8em;
+  margin: 0.2em 0;
+}
 .wysiwyg-content:focus {
   box-shadow: inset 0 0 0 2px rgba(99, 102, 241, 0.08);
+}
+
+.wysiwyg-content input[type="checkbox"] {
+  margin-right: 6px;
 }
 
 /* カラーピッカーポップアップ */
@@ -1503,7 +1559,9 @@ a:hover {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.12s, box-shadow 0.12s;
+  transition:
+    transform 0.12s,
+    box-shadow 0.12s;
 }
 .wysiwyg-color-swatch:hover {
   transform: scale(1.15);
@@ -1559,8 +1617,347 @@ a:hover {
   color: #6d28d9;
 }
 
+/* ---- Web監視ボード ---- */
+.watcher-board {
+  background: #ffffff;
+  box-sizing: border-box;
+  border-radius: 12px;
+  padding: 16px 24px;
+  margin: 24px auto 0 auto;
+  width: calc(100% - 48px);
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+}
+
+.watcher-board-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.watcher-night-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: #475569;
+  flex-wrap: wrap;
+}
+
+.watcher-night-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.watcher-night-check input {
+  margin: 0;
+}
+
+.watcher-night-range {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.watcher-night-range input {
+  width: 64px;
+  padding: 4px 6px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.watcher-board-header h2 {
+  font-size: 16px;
+  font-weight: 600;
+  color: #0f172a;
+  margin-bottom: 4px;
+}
+
+.watcher-board-note {
+  font-size: 12px;
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fed7aa;
+  border-radius: 8px;
+  padding: 6px 10px;
+  margin-bottom: 10px;
+  display: none;
+}
+
+.watcher-board-sub {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.watcher-board-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+@media (max-width: 1100px) {
+  .watcher-board-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 700px) {
+  .watcher-board-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.watcher-board-loading {
+  font-size: 12px;
+  color: #94a3b8;
+  padding: 12px 0;
+}
+
+.watcher-card {
+  border-radius: 10px;
+  border: 1px solid #e2e8f0;
+  padding: 12px;
+  background: #f8fafc;
+}
+
+.watcher-card.ok {
+  border-color: #c7d2fe;
+}
+
+.watcher-card.alert {
+  border-color: #fecaca;
+  background: #fff7ed;
+}
+
+.watcher-card.error {
+  border-color: #fed7aa;
+  background: #fffbeb;
+}
+
+.watcher-card.off {
+  border-color: #e2e8f0;
+  background: #f1f5f9;
+}
+
+.watcher-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.watcher-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.watcher-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.watcher-disabled-tag {
+  font-size: 10px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: #e2e8f0;
+  color: #475569;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.watcher-status-chip {
+  font-size: 11px;
+  padding: 2px 10px;
+  border-radius: 999px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+}
+
+.watcher-status-chip.status-ok {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.watcher-status-chip.status-alert {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.watcher-status-chip.status-off {
+  background: #fef9c3;
+  color: #854d0e;
+}
+
+.watcher-card-body {
+  font-size: 12px;
+  color: #475569;
+}
+
+.watcher-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 0;
+  border-bottom: 1px dashed #e2e8f0;
+}
+
+.watcher-row:last-child {
+  border-bottom: none;
+}
+
+.watcher-weather-toggle {
+  display: inline-flex;
+  gap: 6px;
+  margin-bottom: 6px;
+}
+
+.weather-toggle-btn {
+  border: 1px solid #e2e8f0;
+  background: #ffffff;
+  color: #334155;
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.weather-toggle-btn.active {
+  border-color: #94a3b8;
+  background: #f1f5f9;
+  color: #0f172a;
+  font-weight: 600;
+}
+
+.weather-region {
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.weather-region-normal {
+  font-weight: 400;
+  color: #0f172a;
+}
+
+.weather-city {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.weather-city-line {
+  display: inline-block;
+  padding-left: 12px;
+  text-indent: 0;
+  white-space: normal;
+  text-align: left;
+  max-width: 100%;
+}
+
+.weather-warning-label {
+  font-weight: 700;
+}
+
+.weather-warning-label.warning-default {
+  color: #0f172a;
+}
+
+.weather-warning-label.warning-snowstorm {
+  color: #0ea5e9;
+}
+
+.weather-warning-label.warning-rain {
+  color: #2563eb;
+}
+
+.weather-warning-label.warning-flood {
+  color: #0d9488;
+}
+
+.weather-warning-label.warning-wind {
+  color: #ea580c;
+}
+
+.weather-warning-label.warning-snow {
+  color: #0284c7;
+}
+
+.weather-warning-label.warning-wave {
+  color: #6366f1;
+}
+
+.weather-warning-label.warning-surge {
+  color: #db2777;
+}
+
+.watcher-row span:first-child {
+  color: #64748b;
+  min-width: 72px;
+}
+
+.watcher-row.watcher-row-block {
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+}
+
+.watcher-row.watcher-row-block span {
+  min-width: auto;
+}
+
+.watcher-alert-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 0;
+}
+
+.watcher-alert-block {
+  padding: 0;
+  line-height: 1.5;
+}
+
+.watcher-alert-block .train-line {
+  font-weight: bold;
+  color: #000000;
+  font-synthesis: weight;
+}
+
+.watcher-alert-block .train-status {
+  font-weight: 600;
+}
+
+.watcher-alert-block .train-status-red {
+  color: #dc2626;
+}
+
+.watcher-alert-block .train-status-purple {
+  color: #7c3aed;
+}
+
+@media (max-width: 900px) {
+  .watcher-board {
+    margin: 16px auto 0 auto;
+    width: calc(100% - 32px);
+  }
+  .watcher-row {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .watcher-row span:last-child {
+    text-align: left;
+  }
+}
+
 /* Print */
 @media print {
+  #watcher-board,
   .site-header,
   .sidebar,
   .site-footer,
