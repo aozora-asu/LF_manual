@@ -35,9 +35,15 @@ def check_weather(target: dict, default_timeout: int) -> tuple[str, str]:
     if not alerts:
         return "no_warning", ""
 
+    office_map = _build_descendant_map(area_data, "offices")
+    region_map = _build_descendant_map(area_data, "class10s")
+    parent_map = _build_parent_map(area_data)
+
     results = []
     for alert in alerts:
-        hierarchy = _get_area_hierarchy(area_data, alert["area_code"])
+        hierarchy = _get_area_hierarchy(
+            area_data, alert["area_code"], office_map, region_map, parent_map
+        )
         results.append({
             **alert,
             **hierarchy,
@@ -104,7 +110,13 @@ def _extract_alerts(warning_data: list, warning_codes: list[str]) -> list[dict]:
     return alerts
 
 
-def _get_area_hierarchy(area_data: dict, code: str) -> dict:
+def _get_area_hierarchy(
+    area_data: dict,
+    code: str,
+    office_map: dict | None = None,
+    region_map: dict | None = None,
+    parent_map: dict | None = None,
+) -> dict:
     """エリアコードから地域階層（市町村→都道府県）を辿る"""
     result = {
         "city": None,
@@ -155,10 +167,34 @@ def _get_area_hierarchy(area_data: dict, code: str) -> dict:
             pass
 
         parent = found.get("parent")
+        if isinstance(parent, (list, tuple)) and parent:
+            parent = parent[0]
+        elif isinstance(parent, dict):
+            parent = parent.get("code") or parent.get("id")
+        if not parent and parent_map:
+            parent = parent_map.get(str(cur))
         if parent:
             cur = str(parent)
         else:
             break
+
+    code_key = str(code)
+    if not result["prefecture"] and office_map:
+        resolved = office_map.get(code_key)
+        if resolved:
+            result["prefecture"] = resolved
+    if not result["region"] and region_map:
+        resolved = region_map.get(code_key)
+        if resolved:
+            result["region"] = resolved
+    if parent_map and (not result["prefecture"] or not result["region"]):
+        pref_name, region_name = _resolve_by_parent_map(
+            code_key, parent_map, area_data
+        )
+        if not result["prefecture"] and pref_name:
+            result["prefecture"] = pref_name
+        if not result["region"] and region_name:
+            result["region"] = region_name
 
     return result
 
@@ -172,3 +208,66 @@ def _group_by_prefecture(results: list[dict]) -> dict[str, list[dict]]:
             grouped[pref] = []
         grouped[pref].append(r)
     return grouped
+
+
+def _build_descendant_map(area_data: dict, root_level: str) -> dict[str, str]:
+    class10s = area_data.get("class10s", {})
+    class15s = area_data.get("class15s", {})
+    class20s = area_data.get("class20s", {})
+    roots = area_data.get(root_level, {})
+
+    def children_of(code: str) -> list[str]:
+        if code in class10s:
+            return [str(c) for c in class10s[code].get("children", [])]
+        if code in class15s:
+            return [str(c) for c in class15s[code].get("children", [])]
+        if code in class20s:
+            return []
+        return []
+
+    mapping: dict[str, str] = {}
+    for root_code, root in roots.items():
+        name = root.get("name")
+        if not name:
+            continue
+        queue = [str(c) for c in root.get("children", [])]
+        while queue:
+            cur = queue.pop(0)
+            if cur in mapping:
+                continue
+            mapping[cur] = name
+            queue.extend(children_of(cur))
+    return mapping
+
+
+def _build_parent_map(area_data: dict) -> dict[str, str]:
+    levels = ["centers", "offices", "class10s", "class15s", "class20s"]
+    mapping: dict[str, str] = {}
+    for level in levels:
+        nodes = area_data.get(level, {})
+        for code, node in nodes.items():
+            for child in node.get("children", []):
+                child_code = str(child)
+                if child_code not in mapping:
+                    mapping[child_code] = str(code)
+    return mapping
+
+
+def _resolve_by_parent_map(
+    code: str, parent_map: dict[str, str], area_data: dict
+) -> tuple[str | None, str | None]:
+    offices = area_data.get("offices", {})
+    class10s = area_data.get("class10s", {})
+    pref = None
+    region = None
+    cur = str(code)
+    for _ in range(12):
+        if not pref and cur in offices:
+            pref = offices[cur].get("name")
+        if not region and cur in class10s:
+            region = class10s[cur].get("name")
+        parent = parent_map.get(cur)
+        if not parent:
+            break
+        cur = parent
+    return pref, region

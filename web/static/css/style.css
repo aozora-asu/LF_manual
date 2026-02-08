@@ -1192,7 +1192,7 @@ a:hover {
 
 /* Inline Comment Highlights */
 .comment-highlight {
-  background: rgba(251, 191, 36, 0.25);
+  background: rgba(251, 191, 36, 0.2);
   border-bottom: 2px solid #f59e0b;
   cursor: pointer;
   border-radius: 2px;
@@ -1267,6 +1267,7 @@ a:hover {
 .thread-panel.open {
   right: 0;
 }
+
 .thread-panel-header {
   display: flex;
   justify-content: space-between;
@@ -1279,6 +1280,7 @@ a:hover {
   font-size: 1em;
   font-weight: 600;
 }
+
 .thread-panel-body {
   flex: 1;
   overflow-y: auto;
@@ -1674,6 +1676,18 @@ a:hover {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+}
+
+.watcher-alert-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: #475569;
+}
+
+.watcher-alert-toggle input {
+  margin: 0;
 }
 
 .watcher-night-controls {

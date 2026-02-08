@@ -32,6 +32,15 @@ def check_train(target: dict, default_timeout: int) -> tuple[bool, str]:
     rows = trouble_div.find_all("tr")
     results = []
 
+    def contains_alert(text: str) -> bool:
+        return any(status in text for status in alert_statuses)
+
+    def pick_alert(text: str) -> str | None:
+        for status in alert_statuses:
+            if status in text:
+                return status
+        return None
+
     for tr in rows:
         tds = tr.find_all("td")
         if len(tds) < 3:
@@ -52,11 +61,19 @@ def check_train(target: dict, default_timeout: int) -> tuple[bool, str]:
             detail_url = detail_base + "/" + href
 
         status = tds[1].get_text(strip=True)
+        status_hit = contains_alert(status)
+        needs_detail_check = (not status_hit) and ("他" in status or "運転計画" in status)
+        plan = ""
+        if status_hit or needs_detail_check:
+            plan = _fetch_detail(detail_url, detail_selector, default_timeout)
+            if not status_hit and plan:
+                matched = pick_alert(plan)
+                if matched:
+                    status_hit = True
+                    status = matched
 
-        if status not in alert_statuses:
+        if not status_hit:
             continue
-
-        plan = _fetch_detail(detail_url, detail_selector, default_timeout)
 
         results.append({
             "line": line_name,
@@ -89,8 +106,25 @@ def _fetch_detail(detail_url: str, selector: str, timeout: int) -> str:
         if not svc_div:
             return ""
 
-        dds = svc_div.find_all("dd")
-        texts = [dd.get_text(strip=True) for dd in dds if dd.get_text(strip=True)]
+        texts = []
+        dl = svc_div.find("dl")
+        if dl:
+            nodes = dl.find_all(["dt", "dd"])
+            current_title = ""
+            for node in nodes:
+                if node.name == "dt":
+                    current_title = node.get_text(strip=True)
+                    continue
+                if node.name == "dd":
+                    body = node.get_text(strip=True)
+                    if current_title and body:
+                        texts.append(f"{current_title} {body}")
+                    elif body:
+                        texts.append(body)
+        else:
+            dds = svc_div.find_all("dd")
+            texts = [dd.get_text(strip=True) for dd in dds if dd.get_text(strip=True)]
+
         return " / ".join(texts) if texts else ""
 
     except Exception as e:

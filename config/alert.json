@@ -1,5 +1,6 @@
 {
   "duration_seconds": 0,
+  "window_enabled": false,
   "play_sound": true,
   "sound_file": "alert_ui/sound/alert.wav",
   "topmost": true

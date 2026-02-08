@@ -70,6 +70,13 @@ def _alert_poller() -> None:
 
 def _show_alert(event: dict) -> None:
     """tkinter ウィンドウでアラートを表示する。layout.json からデザインを読み込む。"""
+    try:
+        alert_config = load_config("alert")
+    except Exception:
+        alert_config = {}
+    if not alert_config.get("window_enabled", True):
+        return
+
     if sys.platform == "darwin" and threading.current_thread() is not threading.main_thread():
         try:
             ctx = multiprocessing.get_context("spawn")

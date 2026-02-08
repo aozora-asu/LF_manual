@@ -941,26 +941,133 @@ function encodeSlugForAPI(slug) {
 
 function initComments() {
   var panel = document.getElementById("thread-panel");
-  if (!panel) return;
-
-  var slug = panel.dataset.slug;
+  var slug = panel ? panel.dataset.slug : null;
   var panelBody = document.getElementById("thread-panel-body");
   var panelTitle = document.getElementById("thread-panel-title");
   var closeBtn = document.getElementById("thread-panel-close");
   var floatBtn = document.getElementById("comment-float-btn");
+  var panelToggle = document.getElementById("comment-panel-toggle");
   var pageBody = document.querySelector(".page-body");
+
+  if (!floatBtn) {
+    floatBtn = document.createElement("div");
+    floatBtn.id = "comment-float-btn";
+    floatBtn.className = "comment-float-btn";
+    floatBtn.style.display = "none";
+    floatBtn.innerHTML =
+      '<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 2h12v9H5.5L2 14V2z" stroke="currentColor" stroke-width="1.4" stroke-linejoin="round"/><path d="M5 5.5h6M5 8h4" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/></svg>コメント';
+    document.body.appendChild(floatBtn);
+  }
+
+  if (!panel || !slug || !pageBody) {
+    // パネルが無いページでもコメントの作成は有効にする
+    slug = slug || (pageBody && pageBody.dataset && pageBody.dataset.slug);
+  }
+
+  if (!slug || !pageBody) return;
 
   var threadsData = {};
   var activeThreadId = null;
+  var lastSelection = null;
+  var lastContext = null;
 
   // パネル閉じる
-  closeBtn.addEventListener("click", function () {
-    closePanel();
-  });
+  if (closeBtn) {
+    closeBtn.addEventListener("click", function () {
+      closePanel();
+    });
+  }
+
+  if (panelToggle) {
+    panelToggle.remove();
+    panelToggle = null;
+  }
 
   // テキスト選択 → フローティングボタン表示
   if (pageBody) {
+    var selectionTimer = null;
+    var lastMouse = null;
+    function selectionInPageBody(range) {
+      if (!range) return false;
+      var containsStart =
+        pageBody.contains(range.startContainer) &&
+        pageBody.contains(range.endContainer);
+      if (containsStart) return true;
+      if (typeof range.intersectsNode === "function") {
+        try {
+          return range.intersectsNode(pageBody);
+        } catch (_e) {
+          return false;
+        }
+      }
+      return false;
+    }
+
+    function placeFloatButton(x, y) {
+      floatBtn.style.display = "flex";
+      var btnWidth = floatBtn.offsetWidth || 140;
+      var btnHeight = floatBtn.offsetHeight || 40;
+      var minX = 8;
+      var maxX = window.innerWidth - btnWidth - 8;
+      var minY = 8;
+      var maxY = window.innerHeight - btnHeight - 8;
+      var finalX = Math.max(minX, Math.min(x, maxX));
+      var finalY = Math.max(minY, Math.min(y, maxY));
+      floatBtn.style.left = finalX + "px";
+      floatBtn.style.top = finalY + "px";
+    }
+
+    function updateCommentFloat() {
+      var sel = window.getSelection();
+      if (!sel || sel.isCollapsed || !sel.toString().trim()) {
+        floatBtn.style.display = "none";
+        return;
+      }
+      var selectedText = sel.toString().trim();
+      var range = sel.getRangeAt(0);
+      if (!selectionInPageBody(range)) {
+        var bodyText = pageBody.textContent || "";
+        if (!selectedText || bodyText.indexOf(selectedText) === -1) {
+          floatBtn.style.display = "none";
+          return;
+        }
+      }
+      var rect = range.getBoundingClientRect();
+      if (!rect || (rect.width === 0 && rect.height === 0)) {
+        var rects = range.getClientRects();
+        if (rects && rects.length) rect = rects[0];
+      }
+      if (rect && isFinite(rect.left) && isFinite(rect.bottom)) {
+        var btnH = floatBtn.offsetHeight || 40;
+        var y = rect.top - btnH - 8;
+        var minY = 8;
+        var maxY = window.innerHeight - btnH - 8;
+        if (y < minY) y = minY;
+        if (y > maxY) y = maxY;
+        placeFloatButton(rect.left, y);
+      } else if (lastMouse) {
+        placeFloatButton(
+          lastMouse.x,
+          lastMouse.y - 8,
+        );
+      } else {
+        var bodyRect = pageBody.getBoundingClientRect();
+        if (bodyRect && isFinite(bodyRect.right) && isFinite(bodyRect.top)) {
+          placeFloatButton(
+            bodyRect.right - 140,
+            bodyRect.top + 8,
+          );
+        } else {
+          floatBtn.style.display = "none";
+          return;
+        }
+      }
+      lastSelection = range.cloneRange();
+      lastContext = getSelectionContext(range, pageBody);
+    }
+
     document.addEventListener("mouseup", function (e) {
+      lastMouse = { x: e.clientX, y: e.clientY };
       // フローティングボタンやスレッドフォーム内のクリックは無視
       if (
         e.target.closest(".comment-float-btn") ||
@@ -969,35 +1076,42 @@ function initComments() {
         return;
 
       setTimeout(function () {
-        var sel = window.getSelection();
-        if (!sel || sel.isCollapsed || !sel.toString().trim()) {
-          floatBtn.style.display = "none";
-          return;
-        }
-        // 選択がpage-body内かチェック
-        var range = sel.getRangeAt(0);
-        if (!pageBody.contains(range.commonAncestorContainer)) {
-          floatBtn.style.display = "none";
-          return;
-        }
-        // ボタン位置を選択の近くに表示
-        var rect = range.getBoundingClientRect();
-        floatBtn.style.display = "flex";
-        floatBtn.style.top = rect.bottom + window.scrollY + 6 + "px";
-        floatBtn.style.left = rect.left + window.scrollX + "px";
+        updateCommentFloat();
       }, 10);
+    });
+
+    document.addEventListener("selectionchange", function () {
+      if (selectionTimer) clearTimeout(selectionTimer);
+      selectionTimer = setTimeout(updateCommentFloat, 30);
+    });
+
+    document.addEventListener("keyup", function () {
+      if (selectionTimer) clearTimeout(selectionTimer);
+      selectionTimer = setTimeout(updateCommentFloat, 30);
+    });
+
+    floatBtn.addEventListener("mousedown", function (e) {
+      e.preventDefault();
     });
 
     // フローティングボタンクリック → 新スレッドフォーム表示
     floatBtn.addEventListener("click", function () {
       var sel = window.getSelection();
-      if (!sel || sel.isCollapsed) return;
-      var selectedText = sel.toString().trim();
+      var selectedText = "";
+      var context = null;
+      if (sel && !sel.isCollapsed) {
+        selectedText = sel.toString().trim();
+        if (selectedText) {
+          var range = sel.getRangeAt(0);
+          context = getSelectionContext(range, pageBody);
+        }
+      }
+      if (!selectedText && lastSelection) {
+        selectedText = lastSelection.toString().trim();
+        context = lastContext;
+      }
       if (!selectedText) return;
-
-      // コンテキスト取得（前後の文字）
-      var range = sel.getRangeAt(0);
-      var context = getSelectionContext(range, pageBody);
+      if (!context) context = { before: "", after: "" };
 
       floatBtn.style.display = "none";
       showNewThreadForm(selectedText, context);
@@ -1027,7 +1141,7 @@ function initComments() {
         updateHighlightStyles();
         if (openTid) {
           openPanel(openTid);
-        } else if (activeThreadId) {
+        } else if (panel && panel.classList.contains("open")) {
           renderPanel();
         }
       });
@@ -1128,12 +1242,20 @@ function initComments() {
         }),
       })
         .then(function (res) {
+          if (!res.ok) {
+            return res.json().then(function (err) {
+              throw err;
+            });
+          }
           return res.json();
         })
         .then(function () {
           form.remove();
           // ページをリロードしてcommentタグ反映
           window.location.reload();
+        })
+        .catch(function () {
+          alert("コメントの作成に失敗しました。");
         });
     });
 
@@ -1160,8 +1282,10 @@ function initComments() {
   }
 
   function openPanel(tid) {
+    if (!panel) return;
     activeThreadId = tid;
     panel.classList.add("open");
+    document.body.classList.add("comment-panel-open");
     // ハイライトをアクティブに
     document
       .querySelectorAll(".comment-highlight.active")
@@ -1176,7 +1300,9 @@ function initComments() {
   }
 
   function closePanel() {
+    if (!panel) return;
     panel.classList.remove("open");
+    document.body.classList.remove("comment-panel-open");
     document
       .querySelectorAll(".comment-highlight.active")
       .forEach(function (el) {
@@ -1186,8 +1312,12 @@ function initComments() {
   }
 
   function renderPanel() {
+    if (!panel || !panelBody || !panelTitle) return;
     panelBody.innerHTML = "";
-    if (!activeThreadId) return;
+    if (!activeThreadId) {
+      renderThreadList();
+      return;
+    }
 
     var thread = threadsData[activeThreadId];
     if (!thread) {
@@ -1342,6 +1472,7 @@ function initComments() {
 
     panelBody.appendChild(card);
   }
+
 
   function patchThread(tid, action, shouldClose) {
     fetch("/api/pages/" + encodeSlugForAPI(slug) + "/threads/" + tid, {
@@ -1551,6 +1682,8 @@ function initWatcherBoard() {
   var nightEnabled = document.getElementById("watcher-night-enabled");
   var nightStart = document.getElementById("watcher-night-start");
   var nightEnd = document.getElementById("watcher-night-end");
+  var alertEnabled = document.getElementById("watcher-alert-window-enabled");
+  var alertBound = false;
   var nightBound = false;
   var nightSaveTimer = null;
   var nightDirtyAt = 0;
@@ -1633,6 +1766,43 @@ function initWatcherBoard() {
     nightStart.addEventListener("input", handler);
     nightEnd.addEventListener("input", handler);
     nightBound = true;
+  }
+
+  function bindAlertToggle() {
+    if (alertBound || !alertEnabled) return;
+    alertEnabled.addEventListener("change", saveAlertConfig);
+    alertBound = true;
+  }
+
+  function loadAlertConfig() {
+    if (!alertEnabled) return;
+    fetch("/api/alert/config")
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data) return;
+        alertEnabled.checked = data.window_enabled !== false;
+      })
+      .catch(function () {});
+  }
+
+  function saveAlertConfig() {
+    if (!alertEnabled) return;
+    var payload = { window_enabled: alertEnabled.checked };
+    fetch("/api/alert/config", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+      .then(function (r) {
+        return r.json();
+      })
+      .then(function (data) {
+        if (!data || data.window_enabled === undefined) return;
+        alertEnabled.checked = data.window_enabled !== false;
+      })
+      .catch(function () {});
   }
 
   function updateNightControls(nightStop) {
@@ -1868,29 +2038,44 @@ function initWatcherBoard() {
             }
           }
 
-          if (route || status) {
-            var headlineParts = [];
-            if (route) {
-              headlineParts.push(
-                '<strong class="train-line" style="font-weight:bold;color:#000;">' +
+        if (route || status) {
+          var headlineParts = [];
+          if (route) {
+            headlineParts.push(
+              '<strong class="train-line" style="font-weight:bold;color:#000;">' +
                   escapeHtml(route) +
                   "</strong>",
-              );
-            }
-            if (status) {
-              headlineParts.push(colorizeTrainStatus(status));
-            }
-            htmlLines.push(headlineParts.join(" "));
+            );
           }
-
-          others.forEach(function (line) {
-            htmlLines.push(colorizeTrainStatus(line));
-          });
-        } else {
-          lines.forEach(function (line) {
-            htmlLines.push(renderIndented(line));
-          });
+          if (status) {
+            headlineParts.push(colorizeTrainStatus(status));
+          }
+          htmlLines.push(headlineParts.join(" "));
         }
+
+        var headlineStatus = status || "";
+        others.forEach(function (line) {
+          line
+            .split(" / ")
+            .map(function (part) {
+              return part.trim();
+            })
+            .filter(function (part) {
+              return part.length > 0;
+            })
+            .forEach(function (part) {
+              if (headlineStatus && part.indexOf(headlineStatus) === 0) {
+                var trimmed = part.slice(headlineStatus.length).trim();
+                part = trimmed || part;
+              }
+              htmlLines.push(colorizeTrainStatus(part));
+            });
+        });
+      } else {
+        lines.forEach(function (line) {
+          htmlLines.push(renderIndented(line));
+        });
+      }
 
         return (
           '<div class="watcher-alert-block">' +
@@ -2323,6 +2508,8 @@ function initWatcherBoard() {
   }
 
   loadBoard();
+  loadAlertConfig();
+  bindAlertToggle();
   setInterval(loadBoard, 30000);
   startWatcherStream();
   setInterval(function () {

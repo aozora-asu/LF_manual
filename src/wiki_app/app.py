@@ -220,6 +220,30 @@ def create_app() -> Flask:
 
         return jsonify({"ok": True, "night_stop": night_stop})
 
+    @app.route("/api/alert/config", methods=["GET", "PUT"])
+    def alert_config():
+        config_path = get_config_dir() / "alert.json"
+        try:
+            with open(config_path, "r", encoding="utf-8") as f:
+                config = json.load(f)
+        except Exception:
+            config = {}
+
+        if request.method == "GET":
+            return jsonify({"window_enabled": config.get("window_enabled", True)})
+
+        payload = request.get_json(silent=True) or {}
+        config["window_enabled"] = bool(
+            payload.get("window_enabled", config.get("window_enabled", True))
+        )
+        try:
+            with open(config_path, "w", encoding="utf-8") as f:
+                json.dump(config, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+
+        return jsonify({"ok": True, "window_enabled": config["window_enabled"]})
+
 
     @app.route("/api/watcher/stream")
     def watcher_stream():
