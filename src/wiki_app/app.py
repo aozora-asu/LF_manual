@@ -159,10 +159,12 @@ def create_app() -> Flask:
                 "enabled": t.get("enabled", True),
                 "status": entry.get("status", "unknown"),
                 "alert_active": entry.get("alert_active", False),
+                "info_active": entry.get("info_active", False),
                 "last_checked": entry.get("last_checked", ""),
                 "last_changed": entry.get("last_changed", ""),
                 "last_alert_at": entry.get("last_alert_at", ""),
                 "last_alert_summary": entry.get("last_alert_summary", ""),
+                "last_info_summary": entry.get("last_info_summary", ""),
                 "url": t.get("url")
                 or t.get("warning_url")
                 or t.get("base_url")
@@ -217,6 +219,7 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": str(e)}), 500
 
         return jsonify({"ok": True, "night_stop": night_stop})
+
 
     @app.route("/api/watcher/stream")
     def watcher_stream():

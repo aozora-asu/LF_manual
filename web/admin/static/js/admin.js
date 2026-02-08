@@ -786,9 +786,15 @@ document.addEventListener("DOMContentLoaded", () => {
     const select = document.createElement("select");
     options.forEach((opt) => {
       const option = document.createElement("option");
-      option.value = opt;
-      option.textContent = opt;
-      if (opt === value) option.selected = true;
+      if (typeof opt === "object" && opt !== null) {
+        option.value = opt.value;
+        option.textContent = opt.label ?? opt.value;
+        if (opt.value === value) option.selected = true;
+      } else {
+        option.value = opt;
+        option.textContent = opt;
+        if (opt === value) option.selected = true;
+      }
       select.appendChild(option);
     });
     wrap.appendChild(select);

@@ -1,34 +1,46 @@
-{% extends "base.html" %}
-{% block title %}ページ一覧 - {{ site_name }}{% endblock %}
-{% block content %}
+{% extends "base.html" %} {% block title %}ページ一覧 - {{ site_name }}{%
+endblock %} {% block content %}
 <h2>ページ一覧</h2>
 
-{% macro render_tree_node(node, depth) %}
-    {# ディレクトリ #}
-    {% for key, child in node.children.items() %}
-    <div class="list-tree-dir" style="margin-left: {{ depth * 20 }}px;">
-        <div class="list-tree-dir-label">
-            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1.5 2.5h4l1.5 1.5h5.5v8h-11z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-            <span class="list-tree-dir-name">{{ key }}</span>
-        </div>
-        {{ render_tree_node(child, depth + 1) }}
-    </div>
-    {% endfor %}
-
-    {# ページ #}
-    {% for p in node.pages %}
-    <div class="list-tree-page" style="margin-left: {{ depth * 20 }}px;">
-        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M3 1.5h5.5L12 5v7.5H3z" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/><path d="M8.5 1.5V5H12" stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/></svg>
-        <a href="{{ url_for('pages.view_page', slug=p.slug) }}">{{ p.title }}</a>
-    </div>
-    {% endfor %}
-{% endmacro %}
-
-{% if tree.pages or tree.children %}
-<div class="list-tree">
-    {{ render_tree_node(tree, 0) }}
+{% macro render_tree_node(node, depth) %} {# ディレクトリ #} {% for key, child
+in node.children.items() %}
+<div class="list-tree-dir" style="margin-left: {{ depth * 20 }}px">
+  <div class="list-tree-dir-label">
+    <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+      <path
+        d="M1.5 2.5h4l1.5 1.5h5.5v8h-11z"
+        stroke="currentColor"
+        stroke-width="1.2"
+        stroke-linejoin="round"
+      />
+    </svg>
+    <span class="list-tree-dir-name">{{ key }}</span>
+  </div>
+  {{ render_tree_node(child, depth + 1) }}
 </div>
+{% endfor %} {# ページ #} {% for p in node.pages %}
+<div class="list-tree-page" style="margin-left: {{ depth * 20 }}px;">
+  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+    <path
+      d="M3 1.5h5.5L12 5v7.5H3z"
+      stroke="currentColor"
+      stroke-width="1.2"
+      stroke-linejoin="round"
+    />
+    <path
+      d="M8.5 1.5V5H12"
+      stroke="currentColor"
+      stroke-width="1.2"
+      stroke-linejoin="round"
+    />
+  </svg>
+  <a href="{{ url_for('pages.view_page', slug=p.slug) }}">{{ p.title }}</a>
+</div>
+{% endfor %} {% endmacro %} {% if tree.pages or tree.children %}
+<div class="list-tree">{{ render_tree_node(tree, 0) }}</div>
 {% else %}
-<p class="empty-message">ページがありません。<a href="{{ url_for('pages.new_page') }}">新規作成</a>してください。</p>
-{% endif %}
-{% endblock %}
+<p class="empty-message">
+  ページがありません。<a href="{{ url_for('pages.new_page') }}">新規作成</a
+  >してください。
+</p>
+{% endif %} {% endblock %}

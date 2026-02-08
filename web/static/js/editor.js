@@ -167,7 +167,10 @@
             var btn = document.createElement('button');
             btn.type = 'button';
             btn.className = 'wysiwyg-toolbar-btn';
-            btn.title = TOOL_TIPS[tool.id] || tool.title;
+            var tipText = TOOL_TIPS[tool.id] || tool.title;
+            btn.title = tipText;
+            btn.setAttribute('aria-label', tipText);
+            btn.dataset.tip = tipText;
             btn.dataset.toolId = tool.id;
 
             if (tool.icon && ICONS[tool.icon]) {
@@ -728,7 +731,7 @@
 
                 case 'checkbox':
                     document.execCommand('insertHTML', false,
-                        '<ul><li><label class="check-item"><input type="checkbox"> チェック項目</label></li></ul><p><br></p>');
+                        '<p><label class="check-item"><input type="checkbox"> チェック項目</label></p><p><br></p>');
                     break;
 
                 case 'hr':

@@ -1571,7 +1571,7 @@ function initWatcherBoard() {
       parts.push(t.alert_statuses.join(" / "));
     }
     if (t.type === "weather" && t.warning_codes && t.warning_codes.length) {
-      parts.push("警報コード: " + t.warning_codes.join(", "));
+      parts.push("コード: " + t.warning_codes.join(", "));
     }
     if (
       t.type === "outage" &&
@@ -1581,7 +1581,7 @@ function initWatcherBoard() {
       parts.push("停電閾値: " + t.threshold + "軒");
     }
     if (t.type === "outage" && t.area_code) {
-      parts.push("エリア: " + t.area_code);
+      //parts.push("エリア: " + t.area_code);
     }
     return parts.join(" / ") || "-";
   }
@@ -1765,6 +1765,71 @@ function initWatcherBoard() {
     if (type === "weather") {
       return renderWeatherAlertBlocks(summary, getWeatherViewMode());
     }
+    function formatOutageContent(text) {
+      var trimmed = text.trim();
+      var countMatch = trimmed.match(/^(.+?)\s*[：:]\s*([0-9０-９]+)(軒)?$/);
+      if (countMatch) {
+        var label = escapeHtml(countMatch[1]);
+        var num = countMatch[2];
+        var suffix = countMatch[3] ? "軒" : "";
+        var normalized = num.replace(/[０-９]/g, function (d) {
+          return String.fromCharCode(d.charCodeAt(0) - 65248);
+        });
+        var value = parseInt(normalized, 10);
+        var cls = "outage-count-low";
+        if (!isNaN(value) && value >= 1000) {
+          cls = "outage-count-high";
+        }
+        return (
+          '<strong class="outage-pref">' +
+          label +
+          " : " +
+          '<span class="' +
+          cls +
+          '" style="color:' +
+          (cls === "outage-count-high" ? "#ff9934" : "#fed90e") +
+          ';">' +
+          escapeHtml(num) +
+          "</span>" +
+          suffix +
+          "</strong>"
+        );
+      }
+
+      var escaped = escapeHtml(trimmed);
+      if (trimmed.indexOf("停電が発生しております") !== -1) {
+        escaped = '<strong class="outage-pref">' + escaped + "</strong>";
+      }
+      escaped = escaped.replace(
+        /([0-9０-９]{1,2}[：:][0-9０-９]{2}頃)/g,
+        '<strong class="outage-time">$1</strong>',
+      );
+      return escaped;
+    }
+
+    function isPrefCountLine(text) {
+      return /^.+(都|道|府|県)\s*[：:]\s*[0-9０-９]+(?:軒)?$/.test(
+        text.trim(),
+      );
+    }
+
+    function renderIndented(line) {
+      var match = line.match(/^(\s+)(.*)$/);
+      if (!match) return formatOutageContent(line);
+      var spaceCount = match[1].length;
+      var content = match[2];
+      if (isPrefCountLine(content)) {
+        return formatOutageContent(content);
+      }
+      var indentEm = spaceCount >= 6 ? 2 : 1;
+      return (
+        '<span class="watcher-indent" style="padding-left:' +
+        indentEm +
+        'em;">' +
+        formatOutageContent(content) +
+        "</span>"
+      );
+    }
     var blocks = summary.split(/\n\s*\n/);
     return blocks
       .map(function (block) {
@@ -1823,11 +1888,15 @@ function initWatcherBoard() {
           });
         } else {
           lines.forEach(function (line) {
-            htmlLines.push(escapeHtml(line));
+            htmlLines.push(renderIndented(line));
           });
         }
 
-        return '<div class="watcher-alert-block">' + "</div>";
+        return (
+          '<div class="watcher-alert-block">' +
+          htmlLines.join("<br>") +
+          "</div>"
+        );
       })
       .join("");
   }
@@ -1910,17 +1979,61 @@ function initWatcherBoard() {
     return { regionList: regionList, warningList: warningList };
   }
 
+  function getWeatherScopeMode() {
+    var mode = localStorage.getItem("weather-scope-mode");
+    return mode === "kanto" ? "kanto" : "all";
+  }
+
+  function setWeatherScopeMode(mode) {
+    localStorage.setItem("weather-scope-mode", mode);
+  }
+
+  function filterWeatherByScope(parsed, scope) {
+    if (scope !== "kanto") return parsed;
+    var kantoPrefs = [
+      "茨城県",
+      "栃木県",
+      "群馬県",
+      "埼玉県",
+      "千葉県",
+      "東京都",
+      "神奈川県",
+      "山梨県",
+      "長野県",
+    ];
+    var kantoSet = {};
+    kantoPrefs.forEach(function (p) {
+      kantoSet[p] = true;
+    });
+    var regionList = parsed.regionList
+      .filter(function (region) {
+        return kantoSet[region.pref];
+      })
+      .map(function (region) {
+        return {
+          pref: region.pref,
+          warnings: region.warnings.slice(),
+        };
+      });
+    var warningList = parsed.warningList
+      .map(function (w) {
+        var regions = w.regions.filter(function (r) {
+          return kantoSet[r.pref];
+        });
+        return { label: w.label, regions: regions };
+      })
+      .filter(function (w) {
+        return w.regions.length > 0;
+      });
+    return { regionList: regionList, warningList: warningList };
+  }
+
   function renderWeatherAlertBlocks(summary, mode) {
     var parsed = parseWeatherSummary(summary);
+    parsed = filterWeatherByScope(parsed, getWeatherScopeMode());
     var blocks = [];
-    var formatRegion = function (pref, strong) {
-      return (
-        '<span class="' +
-        (strong ? "weather-region" : "weather-region-normal") +
-        '">&lt;' +
-        escapeHtml(pref) +
-        "&gt;</span>"
-      );
+    var formatRegion = function (pref) {
+      return '<span class="weather-region">' + escapeHtml(pref) + "</span>";
     };
     var renderCities = function (cities) {
       return cities
@@ -1983,7 +2096,7 @@ function initWatcherBoard() {
         var lines = [renderWarningLabel(w.label)];
         w.regions.forEach(function (r) {
           var cities = renderCitiesIndented(r.cities);
-          lines.push(formatRegion(r.pref, false) + ":<br>" + cities);
+          lines.push(formatRegion(r.pref) + "<br>" + cities);
         });
         blocks.push(
           '<div class="watcher-alert-block">' + lines.join("<br>") + "</div>",
@@ -1991,10 +2104,10 @@ function initWatcherBoard() {
       });
     } else {
       parsed.regionList.forEach(function (region) {
-        var lines = [formatRegion(region.pref, true)];
+        var lines = [formatRegion(region.pref)];
         region.warnings.forEach(function (w) {
           var cities = renderCitiesIndented(w.cities);
-          lines.push(renderWarningLabel(w.label) + ":<br>" + cities);
+          lines.push(renderWarningLabel(w.label) + "<br>" + cities);
         });
         blocks.push(
           '<div class="watcher-alert-block">' + lines.join("<br>") + "</div>",
@@ -2085,24 +2198,39 @@ function initWatcherBoard() {
               : "ok"
           : "off";
         var alertText = isAlert ? t.last_alert_summary || "" : "";
+        var infoText =
+          !isAlert && t.info_active ? t.last_info_summary || "" : "";
         if (nightActive) {
           statusText = "停止";
           statusClass = "status-off";
           cardClass = "off";
           alertText = "";
+          infoText = "";
         }
-        var alertHtml = renderAlertBlocks(alertText, t.type);
+        var contentText = alertText || infoText;
+        var alertHtml = renderAlertBlocks(contentText, t.type);
         var weatherToggle = "";
         if (t.type === "weather" && alertText) {
           var mode = getWeatherViewMode();
+          var scopeMode = getWeatherScopeMode();
           weatherToggle =
             '<div class="watcher-weather-toggle">' +
+            '<div class="weather-toggle-group">' +
             '<button class="weather-toggle-btn ' +
             (mode === "warning" ? "active" : "") +
             '" data-mode="warning">警報別</button>' +
             '<button class="weather-toggle-btn ' +
             (mode === "region" ? "active" : "") +
             '" data-mode="region">地域別</button>' +
+            "</div>" +
+            '<div class="weather-toggle-group">' +
+            '<button class="weather-toggle-btn weather-scope-btn ' +
+            (scopeMode === "kanto" ? "active" : "") +
+            '" data-scope="kanto">関東</button>' +
+            '<button class="weather-toggle-btn weather-scope-btn ' +
+            (scopeMode === "all" ? "active" : "") +
+            '" data-scope="all">全国</button>' +
+            "</div>" +
             "</div>";
         }
         var condition = buildCondition(t);
@@ -2135,7 +2263,7 @@ function initWatcherBoard() {
           '    <div class="watcher-row"><span>最終チェック</span><span>' +
           escapeHtml(lastChecked || "-") +
           "</span></div>" +
-          (alertText
+          (contentText
             ? '    <div class="watcher-row watcher-row-block"><span>異常内容</span><div class="watcher-alert-list">' +
               weatherToggle +
               alertHtml +
@@ -2148,15 +2276,35 @@ function initWatcherBoard() {
       .join("");
 
     bindWeatherToggles();
+    bindWeatherScopeToggles();
   }
 
   function bindWeatherToggles() {
-    var buttons = grid.querySelectorAll(".weather-toggle-btn");
+    var buttons = grid.querySelectorAll(".weather-toggle-btn[data-mode]");
     if (!buttons.length) return;
     buttons.forEach(function (btn) {
       btn.addEventListener("click", function () {
         var mode = btn.getAttribute("data-mode") || "region";
         setWeatherViewMode(mode);
+        if (lastBoardData) renderBoard(lastBoardData);
+      });
+    });
+  }
+
+  function bindWeatherScopeToggles() {
+    var buttons = grid.querySelectorAll(".weather-scope-btn");
+    if (!buttons.length) return;
+    buttons.forEach(function (btn) {
+      btn.addEventListener("click", function () {
+        var scope = btn.getAttribute("data-scope") || "all";
+        var container = btn.closest(".watcher-weather-toggle");
+        if (container) {
+          var peers = container.querySelectorAll(".weather-scope-btn");
+          peers.forEach(function (p) {
+            p.classList.toggle("active", p === btn);
+          });
+        }
+        setWeatherScopeMode(scope);
         if (lastBoardData) renderBoard(lastBoardData);
       });
     });
@@ -2169,7 +2317,8 @@ function initWatcherBoard() {
       })
       .then(renderBoard)
       .catch(function () {
-        grid.innerHTML = '<div class="watcher-board-loading">取得失敗</div>';
+        grid.innerHTML =
+          '<div class="watcher-board-loading">Web情報の取得に失敗しました。ブラウザのタブを閉じて再起動してください</div>';
       });
   }
 

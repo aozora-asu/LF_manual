@@ -11,7 +11,7 @@ from src.watcher.fetcher import fetch_xml
 logger = get_logger("watcher")
 
 
-def check_outage(target: dict, default_timeout: int) -> tuple[str, str]:
+def check_outage(target: dict, default_timeout: int) -> tuple[str, str, str]:
     """停電情報をチェックする。
 
     Returns:
@@ -36,15 +36,23 @@ def check_outage(target: dict, default_timeout: int) -> tuple[str, str]:
         cookies=cookies,
     )
 
-    ns = _detect_namespace(root)
-    global_notices = _get_notices(root, ns)
+    global_notices = _get_notices(root)
 
-    areas = root.findall(f".//{ns}エリア") if ns else root.findall(".//エリア")
+    areas = _find_all_by_local_name(root, "エリア")
+    if not areas:
+        logger.debug(
+            "停電XMLのエリアが見つかりません: root=%s tags=%s",
+            _local_name(root.tag),
+            _sample_tags(root),
+        )
+    
     affected = []
     for area in areas:
-        name_el = area.find(f"{ns}名前" if ns else "名前")
-        count_el = area.find(f"{ns}停電軒数" if ns else "停電軒数")
-        code_el = area.find(f"{ns}コード" if ns else "コード")
+        name_el = _find_descendant_by_local_name(area, "名前")
+        count_el = _find_descendant_by_local_name(area, "停電軒数")
+        code_el = _find_descendant_by_local_name(area, "コード")
+        if code_el is None:
+            code_el = _find_descendant_by_suffix(area, "コード")
 
         if name_el is None or count_el is None:
             continue
@@ -55,11 +63,15 @@ def check_outage(target: dict, default_timeout: int) -> tuple[str, str]:
             continue
 
         if count > threshold:
-            pref_code = code_el.text if code_el is not None else ""
+            pref_code = ""
+            if code_el is not None and code_el.text:
+                pref_code = code_el.text.strip()
+            if not pref_code:
+                pref_code = _find_code_attr(area)
             pref_name = name_el.text or ""
 
             pref_detail = _fetch_prefecture_detail(
-                base_url, pref_code, default_timeout, headers, cookies, ns
+                base_url, pref_code, default_timeout, headers, cookies
             )
 
             affected.append({
@@ -71,14 +83,16 @@ def check_outage(target: dict, default_timeout: int) -> tuple[str, str]:
             })
 
     if not affected and not global_notices:
-        return "no_outage", ""
+        return "no_outage", "", "none"
 
     text_parts = []
     summary_parts = []
+    info_only = not affected
+    info_suffix = f"（{threshold}軒以下）" if info_only else ""
 
     for notice in global_notices:
-        text_parts.append(f"notice:{notice}")
-        summary_parts.append(f"<停電情報> {notice}")
+        text_parts.append(f"notice:{notice}{info_suffix}")
+        summary_parts.append(f"{notice}{info_suffix}")
 
     for pref in affected:
         text_parts.append(f"{pref['prefecture']}:{pref['count']}")
@@ -98,24 +112,16 @@ def check_outage(target: dict, default_timeout: int) -> tuple[str, str]:
     current_text = "\n".join(text_parts)
     summary = "\n".join(summary_parts)
 
-    return current_text, summary
+    alert_level = "alert" if affected else "info"
+    return current_text, summary, alert_level
 
 
-def _detect_namespace(root: ET.Element) -> str:
-    """XMLのネームスペースを検出する"""
-    tag = root.tag
-    if tag.startswith("{"):
-        ns_end = tag.index("}")
-        return tag[:ns_end + 1]
-    return ""
-
-
-def _get_notices(root: ET.Element, ns: str) -> list[str]:
+def _get_notices(root: ET.Element) -> list[str]:
     """お知らせ1〜13を取得する"""
     msgs = []
     for i in range(1, 14):
-        tag = f"{ns}お知らせ{i}" if ns else f"お知らせ{i}"
-        el = root.find(f".//{tag}")
+        tag = f"お知らせ{i}"
+        el = _find_first_by_local_name(root, tag)
         if el is not None and el.text and el.text.strip():
             msgs.append(el.text.strip())
     return msgs
@@ -127,7 +133,6 @@ def _fetch_prefecture_detail(
     timeout: int,
     headers: dict,
     cookies: dict,
-    ns: str,
 ) -> dict:
     """都道府県レベルの詳細を取得する"""
     result: dict = {"notices": [], "sub_areas": []}
@@ -146,13 +151,22 @@ def _fetch_prefecture_detail(
         logger.warning("都道府県詳細取得失敗: %s - %s", pref_code, e)
         return result
 
-    result["notices"] = _get_notices(pref_root, ns)
+    # result["notices"] = _get_notices(pref_root)
 
-    areas = pref_root.findall(f".//{ns}エリア" if ns else ".//エリア")
+    areas = _find_all_by_local_name(pref_root, "エリア")
+    if not areas:
+        logger.debug(
+            "都道府県XMLのエリアが見つかりません: code=%s root=%s tags=%s",
+            pref_code,
+            _local_name(pref_root.tag),
+            _sample_tags(pref_root),
+        )
     for area in areas:
-        name_el = area.find(f"{ns}名前" if ns else "名前")
-        count_el = area.find(f"{ns}停電軒数" if ns else "停電軒数")
-        code_el = area.find(f"{ns}コード" if ns else "コード")
+        name_el = _find_descendant_by_local_name(area, "名前")
+        count_el = _find_descendant_by_local_name(area, "停電軒数")
+        code_el = _find_descendant_by_local_name(area, "コード")
+        if code_el is None:
+            code_el = _find_descendant_by_suffix(area, "コード")
 
         if name_el is None or count_el is None:
             continue
@@ -165,14 +179,25 @@ def _fetch_prefecture_detail(
         if count <= 0:
             continue
 
-        sub_code = code_el.text if code_el is not None else ""
-        detail = _fetch_city_detail(base_url, sub_code, timeout, headers, cookies, ns)
+        sub_code = ""
+        if code_el is not None and code_el.text:
+            sub_code = code_el.text.strip()
+        if not sub_code:
+            sub_code = _find_code_attr(area)
+        detail = _fetch_city_detail(base_url, sub_code, timeout, headers, cookies)
 
         result["sub_areas"].append({
             "name": name_el.text or "",
             "count": count,
             "detail": detail,
         })
+
+    if not result["sub_areas"]:
+        logger.debug(
+            "都道府県XMLの詳細エリアが見つかりません: code=%s tags=%s",
+            pref_code,
+            _sample_tags(pref_root),
+        )
 
     return result
 
@@ -183,7 +208,6 @@ def _fetch_city_detail(
     timeout: int,
     headers: dict,
     cookies: dict,
-    ns: str,
 ) -> str:
     """市区町村レベルの地域詳細情報を取得する"""
     if not city_code:
@@ -200,8 +224,88 @@ def _fetch_city_detail(
         logger.warning("市区町村詳細取得失敗: %s - %s", city_code, e)
         return ""
 
-    tag = f"{ns}地域詳細情報" if ns else "地域詳細情報"
-    detail_el = city_root.find(f".//{tag}")
+    lines: list[str] = []
+
+    detail_el = _find_first_by_local_name(city_root, "地域詳細情報")
     if detail_el is not None and detail_el.text:
-        return detail_el.text.strip()
+        lines.append(detail_el.text.strip())
+
+    areas = _find_all_by_local_name(city_root, "エリア")
+    area_lines = []
+    for area in areas:
+        name_el = _find_descendant_by_local_name(area, "名前")
+        count_el = _find_descendant_by_local_name(area, "停電軒数")
+        if name_el is None or count_el is None:
+            continue
+        try:
+            count = int(count_el.text or "0")
+        except ValueError:
+            continue
+        area_lines.append((name_el.text or "", count))
+
+    if area_lines:
+        positive = [item for item in area_lines if item[1] > 0]
+        target_lines = positive if positive else area_lines
+        for name, count in target_lines:
+            if not name:
+                continue
+            lines.append(f"{name} : {count}軒")
+
+    return "\n".join([line for line in lines if line.strip()])
+
+
+def _local_name(tag: str) -> str:
+    """ネームスペース付きタグからローカル名を抽出する"""
+    if "}" in tag:
+        return tag.split("}", 1)[1]
+    return tag
+
+
+def _find_first_by_local_name(root: ET.Element, local_name: str) -> ET.Element | None:
+    for el in root.iter():
+        if _local_name(el.tag) == local_name:
+            return el
+    return None
+
+
+def _find_all_by_local_name(root: ET.Element, local_name: str) -> list[ET.Element]:
+    return [el for el in root.iter() if _local_name(el.tag) == local_name]
+
+
+def _find_descendant_by_local_name(
+    root: ET.Element, local_name: str
+) -> ET.Element | None:
+    for el in root.iter():
+        if _local_name(el.tag) == local_name:
+            return el
+    return None
+
+
+def _find_descendant_by_suffix(
+    root: ET.Element, suffix: str
+) -> ET.Element | None:
+    for el in root.iter():
+        if _local_name(el.tag).endswith(suffix):
+            return el
+    return None
+
+
+def _find_code_attr(root: ET.Element) -> str:
+    for key, value in root.attrib.items():
+        if _local_name(key).endswith("コード") and value:
+            return value.strip()
     return ""
+
+
+def _sample_tags(root: ET.Element, limit: int = 20) -> list[str]:
+    tags: list[str] = []
+    seen = set()
+    for el in root.iter():
+        name = _local_name(el.tag)
+        if name in seen:
+            continue
+        tags.append(name)
+        seen.add(name)
+        if len(tags) >= limit:
+            break
+    return tags

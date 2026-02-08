@@ -93,6 +93,33 @@ body {
   border-bottom: 1px solid #e5e7eb;
   font-size: 18px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.main-header-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #0f172a;
+}
+
+.wiki-back-btn {
+  font-size: 14px;
+  padding: 8px 14px;
+  border-radius: 999px;
+}
+
+@media (max-width: 720px) {
+  .main-header {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+  .wiki-back-btn {
+    width: 100%;
+    text-align: center;
+  }
 }
 
 .content {

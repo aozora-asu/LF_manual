@@ -28,9 +28,6 @@
         <nav class="site-nav">
           <a href="{{ url_for('pages.page_list') }}">ページ一覧</a>
           <a href="{{ url_for('pages.new_page') }}">新規作成</a>
-          <a href="{{ admin_url }}#sec-config" target="_blank" rel="noopener"
-            >監視条件編集</a
-          >
           <div class="watcher-indicator" id="watcher-indicator" title="Web監視">
             <span class="watcher-dot" id="watcher-dot"></span>
             <span class="watcher-label" id="watcher-label">監視</span>
@@ -74,8 +71,13 @@
       <div class="main-area" id="main-area">
         <section class="watcher-board" id="watcher-board">
           <div class="watcher-board-header">
-            <div>
+            <div class="watcher-board-title">
               <h2>Web監視状況</h2>
+              <a
+                class="watcher-config-link"
+                href="{{ admin_url }}#sec-config"
+                >監視条件の変更</a
+              >
             </div>
             <div class="watcher-night-controls">
               <label class="watcher-night-check">

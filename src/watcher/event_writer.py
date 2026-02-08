@@ -41,6 +41,8 @@ def update_index(
     alert_hash: str | None = None,
     alert_active: bool = False,
     alert_summary: str | None = None,
+    info_active: bool = False,
+    info_summary: str | None = None,
 ) -> None:
     """state/watcher/index.json を更新する"""
     index_path = get_state_dir() / "watcher" / "index.json"
@@ -77,6 +79,16 @@ def update_index(
         entry.pop("last_alert_hash", None)
         entry.pop("last_alert_at", None)
         entry.pop("last_alert_summary", None)
+
+    if info_active:
+        entry["info_active"] = True
+        if info_summary:
+            entry["last_info_summary"] = info_summary
+            entry["last_info_at"] = now
+    else:
+        entry.pop("info_active", None)
+        entry.pop("last_info_summary", None)
+        entry.pop("last_info_at", None)
 
     with open(index_path, "w", encoding="utf-8") as f:
         json.dump(index, f, ensure_ascii=False, indent=2)

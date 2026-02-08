@@ -1423,7 +1423,7 @@ a:hover {
 .wysiwyg-editor {
   border: 1px solid rgba(0, 0, 0, 0.1);
   border-radius: var(--radius-xs);
-  overflow: hidden;
+  overflow: visible;
   background: rgba(255, 255, 255, 0.6);
 }
 .wysiwyg-toolbar {
@@ -1460,6 +1460,40 @@ a:hover {
 .wysiwyg-toolbar-btn:hover {
   background: var(--primary-light);
   color: var(--primary-color);
+}
+.wysiwyg-toolbar-btn[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(15, 23, 42, 0.92);
+  color: #ffffff;
+  font-size: 11px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease;
+  z-index: 20;
+}
+.wysiwyg-toolbar-btn[data-tip]::before {
+  content: "";
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border-width: 6px;
+  border-style: solid;
+  border-color: rgba(15, 23, 42, 0.92) transparent transparent transparent;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+  z-index: 19;
+}
+.wysiwyg-toolbar-btn[data-tip]:hover::after,
+.wysiwyg-toolbar-btn[data-tip]:hover::before {
+  opacity: 1;
 }
 .wysiwyg-toolbar-btn svg {
   display: block;
@@ -1636,6 +1670,12 @@ a:hover {
   margin-bottom: 12px;
 }
 
+.watcher-board-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
 .watcher-night-controls {
   display: flex;
   align-items: center;
@@ -1674,6 +1714,24 @@ a:hover {
   font-weight: 600;
   color: #0f172a;
   margin-bottom: 4px;
+}
+
+.watcher-config-link {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  color: #2563eb;
+  text-decoration: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+}
+
+.watcher-config-link:hover {
+  color: #1d4ed8;
+  border-color: #93c5fd;
+  background: #dbeafe;
 }
 
 .watcher-board-note {
@@ -1818,6 +1876,11 @@ a:hover {
   margin-bottom: 6px;
 }
 
+.weather-toggle-group {
+  display: inline-flex;
+  gap: 6px;
+}
+
 .weather-toggle-btn {
   border: 1px solid #e2e8f0;
   background: #ffffff;
@@ -1836,12 +1899,7 @@ a:hover {
 }
 
 .weather-region {
-  font-weight: 600;
-  color: #0f172a;
-}
-
-.weather-region-normal {
-  font-weight: 400;
+  font-weight: 700;
   color: #0f172a;
 }
 
@@ -1857,6 +1915,29 @@ a:hover {
   white-space: normal;
   text-align: left;
   max-width: 100%;
+}
+
+.watcher-indent {
+  display: inline-block;
+  max-width: 100%;
+  vertical-align: top;
+  white-space: normal;
+}
+
+.outage-pref,
+.outage-time {
+  font-weight: 700;
+  color: #000;
+}
+
+.watcher-alert-block .outage-count-low {
+  color: #f59e0b;
+  font-weight: 700;
+}
+
+.watcher-alert-block .outage-count-high {
+  color: #f97316;
+  font-weight: 700;
 }
 
 .weather-warning-label {

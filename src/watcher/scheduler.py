@@ -25,6 +25,7 @@ def start_watcher() -> None:
     logger.info("Watcher 開始")
     config = load_config("watcher")
     targets = config.get("targets", [])
+    targets_by_name = {t.get("name"): t for t in targets if t.get("name")}
     night_stop = config.get("night_stop", {})
     last_config_check = 0.0
     was_night_stopped = False
@@ -40,6 +41,22 @@ def start_watcher() -> None:
             try:
                 config = load_config("watcher")
                 night_stop = config.get("night_stop", {})
+                new_targets = config.get("targets", [])
+                new_by_name = {
+                    t.get("name"): t for t in new_targets if t.get("name")
+                }
+                for name in list(next_run.keys()):
+                    if name not in new_by_name:
+                        next_run.pop(name, None)
+                for name, tgt in new_by_name.items():
+                    if name not in next_run:
+                        next_run[name] = now
+                        continue
+                    old = targets_by_name.get(name)
+                    if old and _should_refresh_target(old, tgt):
+                        next_run[name] = now
+                targets = new_targets
+                targets_by_name = new_by_name
             except Exception:
                 pass
             last_config_check = now
@@ -112,14 +129,23 @@ def _check_target(target: dict, interval_seconds: int) -> None:
 
     try:
         is_first = not snapshot_exists(name)
+        alert_level = "none"
         if target_type == "train":
             current_text, summary = check_train(target, interval_seconds)
+            alert_level = "alert" if summary else "none"
         elif target_type == "weather":
             current_text, summary = check_weather(target, interval_seconds)
+            alert_level = "alert" if summary else "none"
         elif target_type == "outage":
-            current_text, summary = check_outage(target, interval_seconds)
+            result = check_outage(target, interval_seconds)
+            if isinstance(result, tuple) and len(result) == 3:
+                current_text, summary, alert_level = result
+            else:
+                current_text, summary = result
+                alert_level = "alert" if summary else "none"
         else:
             current_text, summary = _check_generic(target, interval_seconds)
+            alert_level = "alert" if summary else "none"
 
         changed = detect_change(name, current_text, "text_change")
 
@@ -133,7 +159,7 @@ def _check_target(target: dict, interval_seconds: int) -> None:
         last_alert_hash = last_entry.get("last_alert_hash", "")
 
         repeat_alert = target.get("repeat_alert", False)
-        should_alert = bool(summary_text) and (
+        should_alert = alert_level == "alert" and bool(summary_text) and (
             changed
             or is_first
             or repeat_alert
@@ -143,14 +169,16 @@ def _check_target(target: dict, interval_seconds: int) -> None:
         if should_alert:
             write_event(target, "text_change", summary)
 
-        status = "error" if summary_text else "ok"
+        status = "error" if alert_level == "alert" and summary_text else "ok"
         update_index(
             target,
             status,
             changed,
             alert_hash=alert_hash if summary_text else None,
-            alert_active=bool(summary_text),
-            alert_summary=summary_text if summary_text else None,
+            alert_active=alert_level == "alert" and bool(summary_text),
+            alert_summary=summary_text if alert_level == "alert" and summary_text else None,
+            info_active=alert_level == "info" and bool(summary_text),
+            info_summary=summary_text if alert_level == "info" and summary_text else None,
         )
 
     except Exception as e:
@@ -174,6 +202,20 @@ def _get_target_interval_seconds(target: dict, default_interval: int) -> int:
     except (TypeError, ValueError):
         interval = default_interval
     return max(1, interval)
+
+
+def _should_refresh_target(old: dict, new: dict) -> bool:
+    if old.get("enabled") != new.get("enabled"):
+        return True
+    if old.get("interval_seconds") != new.get("interval_seconds"):
+        return True
+    if old.get("type") != new.get("type"):
+        return True
+    if new.get("type") == "outage" and old.get("threshold") != new.get("threshold"):
+        return True
+    if new.get("type") == "outage" and old.get("area_code") != new.get("area_code"):
+        return True
+    return False
 
 
 def _reset_watcher_state() -> None:
