@@ -34,7 +34,7 @@ def copy_assets(repo_root: Path, app_dir: Path) -> None:
             shutil.copy2(src, dest)
 
 
-def build_release(repo_root: Path, skip_build: bool) -> Path:
+def build_release(repo_root: Path, skip_build: bool, output_dir: Path) -> Path:
     spec = repo_root / "wiki_suite.spec"
     dist_dir = repo_root / "dist"
     app_dir = dist_dir / APP_NAME
@@ -49,7 +49,7 @@ def build_release(repo_root: Path, skip_build: bool) -> Path:
 
     copy_assets(repo_root, app_dir)
 
-    zip_base = dist_dir / f"{APP_NAME}_release"
+    zip_base = output_dir / f"{APP_NAME}_release"
     if zip_base.with_suffix(".zip").exists():
         zip_base.with_suffix(".zip").unlink()
 
@@ -65,10 +65,19 @@ def main() -> int:
         action="store_true",
         help="Skip PyInstaller build and only copy assets + zip.",
     )
+    parser.add_argument(
+        "--output-dir",
+        default=".",
+        help="Output directory for the release zip (default: repo root).",
+    )
     args = parser.parse_args()
 
     repo_root = Path(__file__).resolve().parents[1]
-    zip_path = build_release(repo_root, args.skip_build)
+    output_dir = Path(args.output_dir)
+    if not output_dir.is_absolute():
+        output_dir = repo_root / output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    zip_path = build_release(repo_root, args.skip_build, output_dir)
     print(f"Release zip created: {zip_path}")
     return 0
 
