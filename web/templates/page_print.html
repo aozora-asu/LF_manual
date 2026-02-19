@@ -2,26 +2,93 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ page.title }} - {{ site_name }}</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <style>
-        body { font-family: "Yu Gothic UI", "Hiragino Sans", sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
-        h1 { border-bottom: 2px solid #333; padding-bottom: 8px; }
+        body { background: #fff; margin: 0; padding: 0; }
+        .print-shell { max-width: 1120px; margin: 0 auto; padding: 18px 16px 24px; }
+        .no-print { margin-bottom: 12px; }
+        .page-body hr {
+            border: none;
+            height: 4px;
+            margin: 0.5em 0;
+            background: rgba(0, 0, 0, 0.12);
+            border-radius: 999px;
+            overflow: hidden;
+            position: relative;
+        }
+        .page-body hr::before {
+            content: "";
+            position: absolute;
+            inset: 0 auto 0 0;
+            width: var(--hr-accent-width, 28%);
+            background: #293382;
+            border-radius: 999px;
+        }
         @media print {
             .no-print { display: none; }
+            .print-shell { max-width: none; margin: 0; padding: 0; }
+            .page-view { margin: 0; }
         }
     </style>
 </head>
 <body>
-    <div class="no-print">
-        <button onclick="window.print()">印刷する</button>
-        <a href="{{ url_for('pages.view_page', slug=page.slug) }}">戻る</a>
+    <div class="print-shell">
+        <div class="no-print">
+            <button class="btn btn-secondary" onclick="window.print()">印刷する</button>
+            <a class="btn btn-secondary" href="{{ url_for('pages.view_page', slug=page.slug) }}">戻る</a>
+        </div>
+        <article class="page-view">
+            <div class="page-header">
+                <h1>{{ page.title }}</h1>
+            </div>
+            <div class="page-body">
+                {{ html_content | safe }}
+            </div>
+            <footer>
+                <p class="page-meta no-print">作成: {{ page.created }} / 更新: {{ page.updated }}</p>
+            </footer>
+        </article>
     </div>
-    <h1>{{ page.title }}</h1>
-    <div class="page-body">
-        {{ html_content | safe }}
-    </div>
-    <footer>
-        <p class="no-print">作成: {{ page.created }} / 更新: {{ page.updated }}</p>
-    </footer>
+    <script>
+      function wrapTables() {
+        document.querySelectorAll(".page-body table").forEach(function (table) {
+          if (
+            table.parentElement &&
+            table.parentElement.classList &&
+            table.parentElement.classList.contains("page-table-scroll")
+          ) {
+            return;
+          }
+          var wrap = document.createElement("div");
+          wrap.className = "page-table-scroll";
+          table.parentNode.insertBefore(wrap, table);
+          wrap.appendChild(table);
+        });
+      }
+      function applyHrAccent() {
+        var body = document.querySelector(".page-body");
+        if (!body) return;
+        var hrs = body.querySelectorAll("hr");
+        var total = hrs.length;
+        if (!total) return;
+        hrs.forEach(function (hr, idx) {
+          var width;
+          if (total === 1) {
+            width = 100;
+          } else if (idx === total - 1) {
+            width = 100;
+          } else {
+            width = 22 + (78 * idx) / (total - 1);
+          }
+          hr.style.setProperty("--hr-accent-width", width.toFixed(1) + "%");
+        });
+      }
+      window.addEventListener("load", function () {
+        wrapTables();
+        applyHrAccent();
+      });
+    </script>
 </body>
 </html>

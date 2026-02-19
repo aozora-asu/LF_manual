@@ -10,6 +10,7 @@
       "type": "train",
       "enabled": true,
       "interval_seconds": 10,
+      "site_url": "https://transit.yahoo.co.jp/diainfo/area/4",
       "url": "https://transit.yahoo.co.jp/diainfo/area/4",
       "detail_base_url": "https://transit.yahoo.co.jp",
       "selector": "#mdStatusTroubleLine",
@@ -24,6 +25,7 @@
       "type": "weather",
       "enabled": true,
       "interval_seconds": 10,
+      "site_url": "https://www.jma.go.jp/bosai/map.html#5/34.5/137/&elem=all&contents=warning",
       "warning_url": "https://www.jma.go.jp/bosai/warning/data/warning/map.json",
       "area_url": "https://www.jma.go.jp/bosai/common/const/area.json",
       "warning_codes": [
@@ -42,6 +44,7 @@
       "type": "outage",
       "enabled": true,
       "interval_seconds": 10,
+      "site_url": "https://teideninfo.tepco.co.jp/",
       "base_url": "https://teideninfo.tepco.co.jp/flash/xml",
       "area_code": "00000000000",
       "auth_token": "sk3PT518",

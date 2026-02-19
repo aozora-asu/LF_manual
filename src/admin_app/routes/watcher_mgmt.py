@@ -64,7 +64,9 @@ def watcher_overview():
             "last_changed": state.get("last_changed", "") if state else "",
         }
 
-        if target_type == "train":
+        if ct.get("site_url"):
+            target_info["url"] = ct.get("site_url", "")
+        elif target_type == "train":
             target_info["url"] = ct.get("url", "")
         elif target_type == "weather":
             target_info["url"] = ct.get("warning_url", "")

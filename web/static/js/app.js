@@ -2,6 +2,9 @@
 
 document.addEventListener("DOMContentLoaded", function () {
   initComments();
+  initPageCheckboxes();
+  initPageTableOverflow();
+  initPageHrAccent();
   initSidebar();
   initLiveSearch();
   initWatcherBoard();
@@ -64,6 +67,7 @@ function initSidebar() {
     if (!loaded) {
       loadTree();
       loadHistory();
+      loadTrash();
       loaded = true;
     }
   }
@@ -79,7 +83,7 @@ function initSidebar() {
 
   function loadTree() {
     var container = document.getElementById("sidebar-tree");
-    fetch("/api/pages/tree")
+    fetch("/api/pages/tree", { cache: "no-store" })
       .then(function (res) {
         return res.json();
       })
@@ -88,6 +92,8 @@ function initSidebar() {
         renderNode(tree, container, true, "");
         // ルートにも追加ボタンを配置
         container.appendChild(createAddRow(""));
+        // 余白ドロップでもルートに戻せるようにする
+        setupDropZone(container, "");
       });
   }
 
@@ -97,20 +103,43 @@ function initSidebar() {
   /* ---- ノード描画 ---- */
 
   function renderNode(node, parent, isRoot, currentPath) {
-    // ディレクトリ描画（先にディレクトリを表示）
-    var keys = Object.keys(node.children || {});
-    keys.forEach(function (key) {
-      var child = node.children[key];
-      var dirPath = currentPath ? currentPath + "/" + key : key;
-      renderDirectory(child, parent, dirPath);
+    var children = node.children || {};
+    var pages = Array.isArray(node.pages) ? node.pages : [];
+    var pageMap = {};
+    pages.forEach(function (p) {
+      if (!p || !p.slug) return;
+      pageMap[p.slug] = p;
     });
 
-    // ページ描画
-    if (node.pages && node.pages.length > 0) {
-      node.pages.forEach(function (p) {
+    var items = Array.isArray(node.items) ? node.items : null;
+    if (!items || !items.length) {
+      // 旧データ互換: dirs -> pages
+      Object.keys(children).forEach(function (key) {
+        var child = children[key];
+        var dirPath = currentPath ? currentPath + "/" + key : key;
+        renderDirectory(child, parent, dirPath);
+      });
+      pages.forEach(function (p) {
         parent.appendChild(createPageRow(p, currentPath));
       });
+      return;
     }
+
+    items.forEach(function (item) {
+      if (!item || !item.type) return;
+      if (item.type === "dir") {
+        var dirName = item.name;
+        if (!dirName || !children[dirName]) return;
+        var dirPath = currentPath ? currentPath + "/" + dirName : dirName;
+        renderDirectory(children[dirName], parent, dirPath);
+        return;
+      }
+      if (item.type === "page") {
+        var slug = item.slug;
+        if (!slug || !pageMap[slug]) return;
+        parent.appendChild(createPageRow(pageMap[slug], currentPath));
+      }
+    });
   }
 
   function renderDirectory(node, parent, dirPath) {
@@ -128,6 +157,7 @@ function initSidebar() {
 
     var label = document.createElement("div");
     label.className = "tree-dir-label";
+    label.draggable = true;
 
     // ディレクトリ用グリップハンドル
     var grip = document.createElement("span");
@@ -146,27 +176,12 @@ function initSidebar() {
     var nameSpan = document.createElement("span");
     nameSpan.className = "tree-dir-name";
     nameSpan.textContent = node.name;
-
-    // ディレクトリ内追加ボタン（ホバーで表示）
-    var addBtn = document.createElement("button");
-    addBtn.className = "icon-btn icon-btn-sm tree-inline-action";
-    addBtn.title = node.name + " にページを追加";
-    addBtn.innerHTML = SVG.plus;
-    addBtn.addEventListener("click", function (e) {
-      e.stopPropagation();
-      if (!arrow.classList.contains("open")) {
-        arrow.classList.add("open");
-        childrenDiv.classList.add("open");
-        folderIcon.innerHTML = SVG.folderOpen;
-      }
-      showInlineAdd(childrenDiv, dirPath);
-    });
+    nameSpan.title = "ダブルクリックで名前変更";
 
     label.appendChild(grip);
     label.appendChild(arrow);
     label.appendChild(folderIcon);
     label.appendChild(nameSpan);
-    label.appendChild(addBtn);
 
     var childrenDiv = document.createElement("div");
     childrenDiv.className = "tree-dir-children";
@@ -183,7 +198,7 @@ function initSidebar() {
     }
 
     label.addEventListener("click", function (e) {
-      if (e.target.closest(".icon-btn") || e.target.closest(".tree-grip"))
+      if (e.target.closest(".tree-grip"))
         return;
       arrow.classList.toggle("open");
       childrenDiv.classList.toggle("open");
@@ -192,13 +207,16 @@ function initSidebar() {
         : SVG.folder;
     });
 
+    nameSpan.addEventListener("dblclick", function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      startDirectoryInlineEdit(dirDiv, nameSpan);
+    });
+
     // ディレクトリD&D: dragstart
     dirDiv.addEventListener("dragstart", function (e) {
-      // グリップハンドルからのドラッグのみ許可
-      if (!e.target.closest || !e.target.closest(".tree-dir")) {
-        e.preventDefault();
-        return;
-      }
+      // このラベル起点のドラッグだけ扱う（子要素のdragstartは無視）
+      if (!label.contains(e.target)) return;
       dragState.dragging = {
         type: "dir",
         dirName: dirName,
@@ -221,9 +239,14 @@ function initSidebar() {
 
     // ディレクトリD&D: 同階層の他ディレクトリの上にdragover
     dirDiv.addEventListener("dragover", function (e) {
-      if (!dragState.dragging || dragState.dragging.type !== "dir") return;
-      if (dragState.dragging.parentPath !== parentPath) return;
-      if (dragState.dragging.dirName === dirName) return;
+      if (!dragState.dragging) return;
+      var draggingItemRef = getDraggingItemRef(dragState.dragging);
+      if (
+        itemRefKey(draggingItemRef) ===
+        itemRefKey({ type: "dir", name: dirName })
+      )
+        return;
+      if (isInvalidDirTarget(dragState.dragging, parentPath)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -252,9 +275,14 @@ function initSidebar() {
     });
 
     dirDiv.addEventListener("drop", function (e) {
-      if (!dragState.dragging || dragState.dragging.type !== "dir") return;
-      if (dragState.dragging.parentPath !== parentPath) return;
-      if (dragState.dragging.dirName === dirName) return;
+      if (!dragState.dragging) return;
+      var draggingItemRef = getDraggingItemRef(dragState.dragging);
+      if (
+        itemRefKey(draggingItemRef) ===
+        itemRefKey({ type: "dir", name: dirName })
+      )
+        return;
+      if (isInvalidDirTarget(dragState.dragging, parentPath)) return;
 
       e.preventDefault();
       e.stopPropagation();
@@ -262,11 +290,10 @@ function initSidebar() {
 
       var position = dirDiv.dataset.dropPosition || "after";
       delete dirDiv.dataset.dropPosition;
-      reorderDirsInParent(
+      moveAndPlaceDraggedItem(
         parent,
         parentPath,
-        dragState.dragging.dirName,
-        dirName,
+        { type: "dir", name: dirName },
         position,
       );
     });
@@ -288,10 +315,22 @@ function initSidebar() {
     targetName,
     position,
   ) {
-    var dirDivs = container.querySelectorAll(":scope > .tree-dir");
+    var dirDivs = Array.prototype.filter.call(
+      container.children || [],
+      function (el) {
+        return (
+          el &&
+          el.classList &&
+          el.classList.contains("tree-dir") &&
+          typeof el.dataset.dirName === "string"
+        );
+      },
+    );
     var names = [];
     dirDivs.forEach(function (d) {
-      names.push(d.dataset.dirName);
+      var name = (d.dataset.dirName || "").trim();
+      if (!name) return;
+      names.push(name);
     });
 
     var filtered = names.filter(function (n) {
@@ -330,17 +369,21 @@ function initSidebar() {
     // グリップハンドル
     var grip = document.createElement("span");
     grip.className = "tree-grip";
+    grip.draggable = true;
     grip.innerHTML = SVG.grip;
     grip.title = "ドラッグして移動";
 
     var icon = document.createElement("span");
     icon.className = "tree-page-icon";
+    icon.draggable = true;
     icon.innerHTML = SVG.file;
 
     var a = document.createElement("a");
     a.className = "tree-page-link";
     a.href = "/pages/" + encodeSlug(p.slug);
     a.textContent = p.title;
+    // タイトル文字上からでもドラッグ開始できるようにする
+    a.draggable = true;
     if (decodeURIComponent(window.location.pathname) === "/pages/" + p.slug) {
       a.classList.add("active");
     }
@@ -364,6 +407,7 @@ function initSidebar() {
     // ドラッグイベント
     row.addEventListener("dragstart", function (e) {
       dragState.dragging = {
+        type: "page",
         slug: p.slug,
         title: p.title,
         element: row,
@@ -372,6 +416,7 @@ function initSidebar() {
       row.classList.add("dragging");
       e.dataTransfer.effectAllowed = "move";
       e.dataTransfer.setData("text/plain", p.slug);
+      e.stopPropagation();
     });
 
     row.addEventListener("dragend", function () {
@@ -381,31 +426,35 @@ function initSidebar() {
       dragState.dragging = null;
     });
 
-    // 同階層並び替え用のdragoverイベント
+    // 位置指定ドロップ（同階層/別階層の両方）
     row.addEventListener("dragover", function (e) {
       if (!dragState.dragging) return;
-      var draggingDir = dragState.dragging.dirPath;
-      // 同一ディレクトリ内の並び替え
-      if (draggingDir === dirPath && dragState.dragging.slug !== p.slug) {
-        e.preventDefault();
-        e.dataTransfer.dropEffect = "move";
-        e.stopPropagation();
-        var rect = row.getBoundingClientRect();
-        var midY = rect.top + rect.height / 2;
-        removeDropIndicators();
-        var indicator = document.createElement("div");
-        indicator.className = "tree-drop-indicator";
-        if (e.clientY < midY) {
-          row.parentNode.insertBefore(indicator, row);
-          row.dataset.dropPosition = "before";
+      var draggingItemRef = getDraggingItemRef(dragState.dragging);
+      if (
+        itemRefKey(draggingItemRef) ===
+        itemRefKey({ type: "page", slug: p.slug })
+      )
+        return;
+      if (isInvalidDirTarget(dragState.dragging, dirPath)) return;
+
+      e.preventDefault();
+      e.dataTransfer.dropEffect = "move";
+      e.stopPropagation();
+      var rect = row.getBoundingClientRect();
+      var midY = rect.top + rect.height / 2;
+      removeDropIndicators();
+      var indicator = document.createElement("div");
+      indicator.className = "tree-drop-indicator";
+      if (e.clientY < midY) {
+        row.parentNode.insertBefore(indicator, row);
+        row.dataset.dropPosition = "before";
+      } else {
+        if (row.nextSibling) {
+          row.parentNode.insertBefore(indicator, row.nextSibling);
         } else {
-          if (row.nextSibling) {
-            row.parentNode.insertBefore(indicator, row.nextSibling);
-          } else {
-            row.parentNode.appendChild(indicator);
-          }
-          row.dataset.dropPosition = "after";
+          row.parentNode.appendChild(indicator);
         }
+        row.dataset.dropPosition = "after";
       }
     });
 
@@ -415,20 +464,24 @@ function initSidebar() {
 
     row.addEventListener("drop", function (e) {
       if (!dragState.dragging) return;
-      var draggingDir = dragState.dragging.dirPath;
-      if (draggingDir === dirPath && dragState.dragging.slug !== p.slug) {
-        e.preventDefault();
-        e.stopPropagation();
-        removeDropIndicators();
-        reorderInDirectory(
-          row.parentNode,
-          dirPath,
-          dragState.dragging.slug,
-          p.slug,
-          row.dataset.dropPosition || "after",
-        );
-        delete row.dataset.dropPosition;
-      }
+      var draggingItemRef = getDraggingItemRef(dragState.dragging);
+      if (
+        itemRefKey(draggingItemRef) ===
+        itemRefKey({ type: "page", slug: p.slug })
+      )
+        return;
+      if (isInvalidDirTarget(dragState.dragging, dirPath)) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+      removeDropIndicators();
+      moveAndPlaceDraggedItem(
+        row.parentNode,
+        dirPath,
+        { type: "page", slug: p.slug },
+        row.dataset.dropPosition || "after",
+      );
+      delete row.dataset.dropPosition;
     });
 
     return row;
@@ -450,10 +503,22 @@ function initSidebar() {
     position,
   ) {
     // コンテナ内のページ行からslugリストを取得
-    var rows = container.querySelectorAll(":scope > .tree-page-row");
+    var rows = Array.prototype.filter.call(
+      container.children || [],
+      function (el) {
+        return (
+          el &&
+          el.classList &&
+          el.classList.contains("tree-page-row") &&
+          typeof el.dataset.slug === "string"
+        );
+      },
+    );
     var slugs = [];
     rows.forEach(function (r) {
-      slugs.push(r.dataset.slug);
+      var slug = (r.dataset.slug || "").trim();
+      if (!slug) return;
+      slugs.push(slug);
     });
 
     // draggedSlugを現在の位置から除去
@@ -480,6 +545,238 @@ function initSidebar() {
           loadTree();
         }
       });
+  }
+
+  function getDraggingParentPath(dragging) {
+    if (!dragging) return null;
+    return dragging.type === "dir" ? dragging.parentPath : dragging.dirPath;
+  }
+
+  function getDraggingItemRef(dragging) {
+    if (!dragging) return null;
+    if (dragging.type === "dir") {
+      var name = (dragging.dirName || "").trim();
+      return name ? { type: "dir", name: name } : null;
+    }
+    var slug = (dragging.slug || "").trim();
+    return slug ? { type: "page", slug: slug } : null;
+  }
+
+  function itemRefKey(itemRef) {
+    if (!itemRef || !itemRef.type) return "";
+    if (itemRef.type === "dir") return "dir|" + (itemRef.name || "");
+    if (itemRef.type === "page") return "page|" + (itemRef.slug || "");
+    return "";
+  }
+
+  function collectMixedItems(container) {
+    var items = [];
+    Array.prototype.forEach.call(container.children || [], function (el) {
+      if (!el || !el.classList) return;
+      if (el.classList.contains("tree-dir")) {
+        var name = (el.dataset.dirName || "").trim();
+        if (name) items.push({ type: "dir", name: name });
+        return;
+      }
+      if (el.classList.contains("tree-page-row")) {
+        var slug = (el.dataset.slug || "").trim();
+        if (slug) items.push({ type: "page", slug: slug });
+      }
+    });
+    return items;
+  }
+
+  function requestReorderItems(parentPath, items) {
+    return fetch("/api/pages/reorder-items", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ parent: parentPath, items: items }),
+    }).then(function (res) {
+      return res.json();
+    });
+  }
+
+  function buildReorderedItems(
+    container,
+    draggingItemRef,
+    targetItemRef,
+    position,
+  ) {
+    var draggingKey = itemRefKey(draggingItemRef);
+    var targetKey = itemRefKey(targetItemRef);
+    var items = collectMixedItems(container).filter(function (item) {
+      return itemRefKey(item) !== draggingKey;
+    });
+    if (!targetKey) {
+      items.push(draggingItemRef);
+      return items;
+    }
+    var idx = items.findIndex(function (item) {
+      return itemRefKey(item) === targetKey;
+    });
+    if (idx === -1) return null;
+    if (position === "after") idx++;
+    items.splice(idx, 0, draggingItemRef);
+    return items;
+  }
+
+  function isInvalidDirTarget(dragging, targetParentPath) {
+    if (!dragging || dragging.type !== "dir") return false;
+    var oldDir = (dragging.dirPath || "").trim();
+    var target = (targetParentPath || "").trim();
+    if (!oldDir) return true;
+    if (target === oldDir) return true;
+    if (target && target.indexOf(oldDir + "/") === 0) return true;
+    return false;
+  }
+
+  function resolveDropContainer(element) {
+    if (!element || !element.classList) return null;
+    if (element.classList.contains("tree-add-row")) {
+      return element.parentNode || null;
+    }
+    if (element.classList.contains("tree-dir-label")) {
+      var dirNode = element.parentNode;
+      if (!dirNode) return null;
+      var children = dirNode.querySelector(".tree-dir-children");
+      return children || null;
+    }
+    return element;
+  }
+
+  function moveAndPlaceDraggedItem(
+    container,
+    targetParentPath,
+    targetItemRef,
+    position,
+  ) {
+    var dragging = dragState.dragging;
+    if (!dragging || !container) return;
+
+    var sourceParent = (getDraggingParentPath(dragging) || "").trim();
+    var targetParent = (targetParentPath || "").trim();
+    var sameParent = sourceParent === targetParent;
+    var movePromise;
+
+    if (sameParent) {
+      var currentDraggingRef = getDraggingItemRef(dragging);
+      var sameItems = buildReorderedItems(
+        container,
+        currentDraggingRef,
+        targetItemRef,
+        position,
+      );
+      if (!sameItems) return;
+      requestReorderItems(targetParent, sameItems).then(function (data) {
+        if (data.ok) loadTree();
+      });
+      return;
+    }
+
+    if (dragging.type === "page") {
+      var oldSlug = dragging.slug || "";
+      if (!oldSlug) return;
+      var fileName = oldSlug.split("/").pop();
+      var nextSlug = targetParent ? targetParent + "/" + fileName : fileName;
+      movePromise = fetch("/api/pages/move", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_slug: oldSlug, new_slug: nextSlug }),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data.ok) {
+            return { ok: false, error: data.error || "" };
+          }
+          return {
+            ok: true,
+            movedItemRef: { type: "page", slug: data.new_slug || nextSlug },
+            oldSlug: oldSlug,
+            newSlug: data.new_slug || nextSlug,
+          };
+        });
+    } else if (dragging.type === "dir") {
+      if (isInvalidDirTarget(dragging, targetParent)) return;
+      var oldDir = (dragging.dirPath || "").trim();
+      if (!oldDir) return;
+      movePromise = fetch("/api/pages/move-dir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          old_dir: oldDir,
+          target_parent: targetParent,
+        }),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data.ok) {
+            return { ok: false, error: data.error || "" };
+          }
+          var movedName = "";
+          if (data.new_dir) movedName = data.new_dir.split("/").pop() || "";
+          if (!movedName) movedName = dragging.dirName || "";
+          return {
+            ok: true,
+            movedItemRef: { type: "dir", name: movedName },
+            oldDir: oldDir,
+            newDir: data.new_dir || "",
+          };
+        });
+    } else {
+      return;
+    }
+
+    movePromise.then(function (moveResult) {
+      if (!moveResult || !moveResult.ok) {
+        alert(
+          "移動に失敗しました: " + ((moveResult && moveResult.error) || ""),
+        );
+        return;
+      }
+      var movedItemRef = moveResult.movedItemRef;
+      if (!movedItemRef) {
+        loadTree();
+        loadTrash();
+        return;
+      }
+      var items = buildReorderedItems(
+        container,
+        movedItemRef,
+        targetItemRef,
+        position,
+      );
+      if (!items) {
+        items = buildReorderedItems(container, movedItemRef, null, "after");
+      }
+      requestReorderItems(targetParent, items).then(function () {
+        loadTree();
+        loadHistory();
+        loadTrash();
+
+        if (
+          moveResult.oldSlug &&
+          decodeURIComponent(window.location.pathname) ===
+            "/pages/" + moveResult.oldSlug
+        ) {
+          window.location.href = "/pages/" + encodeSlug(moveResult.newSlug);
+          return;
+        }
+
+        if (moveResult.oldDir) {
+          var currentPath = decodeURIComponent(window.location.pathname);
+          var prefix = "/pages/" + moveResult.oldDir + "/";
+          if (currentPath.indexOf(prefix) === 0) {
+            var tail = currentPath.slice(prefix.length);
+            window.location.href =
+              "/pages/" + encodeSlug((moveResult.newDir || "") + "/" + tail);
+          }
+        }
+      });
+    });
   }
 
   /* ---- 「...」ドロップダウンメニュー ---- */
@@ -520,6 +817,7 @@ function initSidebar() {
           if (data.ok) {
             loadTree();
             loadHistory();
+            loadTrash();
             if (
               decodeURIComponent(window.location.pathname) ===
               "/pages/" + p.slug
@@ -550,6 +848,109 @@ function initSidebar() {
   }
 
   /* ---- インラインタイトル編集 ---- */
+
+  function startDirectoryInlineEdit(dirDiv, nameSpan) {
+    if (!dirDiv || !nameSpan) return;
+    var label = dirDiv.querySelector(".tree-dir-label");
+    if (!label) return;
+    if (label.querySelector(".tree-inline-edit-dir")) return;
+
+    var oldDir = (dirDiv.dataset.dirPath || "").trim();
+    var oldName = (dirDiv.dataset.dirName || "").trim();
+    if (!oldDir || !oldName) return;
+
+    var input = document.createElement("input");
+    input.type = "text";
+    input.className = "tree-inline-edit tree-inline-edit-dir";
+    input.value = oldName;
+    input.addEventListener("mousedown", function (e) {
+      e.stopPropagation();
+    });
+    input.addEventListener("click", function (e) {
+      e.stopPropagation();
+    });
+
+    nameSpan.style.display = "none";
+    label.insertBefore(input, nameSpan.nextSibling);
+    input.focus();
+    input.select();
+
+    var composing = false;
+    input.addEventListener("compositionstart", function () {
+      composing = true;
+    });
+    input.addEventListener("compositionend", function () {
+      composing = false;
+    });
+
+    var finished = false;
+    function finish(save) {
+      if (finished) return;
+      finished = true;
+
+      var cleanup = function () {
+        input.remove();
+        nameSpan.style.display = "";
+      };
+
+      if (!save) {
+        cleanup();
+        return;
+      }
+
+      var newName = input.value.trim();
+      if (!newName || newName === oldName) {
+        cleanup();
+        return;
+      }
+
+      fetch("/api/pages/rename-dir", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ old_dir: oldDir, new_name: newName }),
+      })
+        .then(function (res) {
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data.ok) {
+            alert("ディレクトリ名の変更に失敗しました: " + (data.error || ""));
+            cleanup();
+            return;
+          }
+
+          cleanup();
+          loadTree();
+          loadHistory();
+          loadTrash();
+
+          var currentPath = decodeURIComponent(window.location.pathname);
+          var prefix = "/pages/" + oldDir + "/";
+          if (currentPath.indexOf(prefix) === 0) {
+            var tail = currentPath.slice(prefix.length);
+            window.location.href =
+              "/pages/" + encodeSlug((data.new_dir || "") + "/" + tail);
+          }
+        })
+        .catch(function () {
+          cleanup();
+        });
+    }
+
+    input.addEventListener("keydown", function (e) {
+      if (composing) return;
+      if (e.key === "Enter") {
+        e.preventDefault();
+        finish(true);
+      } else if (e.key === "Escape") {
+        e.preventDefault();
+        finish(false);
+      }
+    });
+    input.addEventListener("blur", function () {
+      finish(true);
+    });
+  }
 
   function startInlineEdit(row, p, linkEl, dirPath) {
     var input = document.createElement("input");
@@ -601,8 +1002,8 @@ function initSidebar() {
                   currentPath === "/pages/" + oldSlug ||
                   currentPath === "/"
                 ) {
-                  var pageH2 = document.querySelector(".page-header h2");
-                  if (pageH2) pageH2.textContent = data.title;
+                  var pageH1 = document.querySelector(".page-header h1");
+                  if (pageH1) pageH1.textContent = data.title;
                   document.title =
                     data.title +
                     " - " +
@@ -618,6 +1019,7 @@ function initSidebar() {
 
                 loadTree();
                 loadHistory();
+                loadTrash();
               }
             });
         }
@@ -655,10 +1057,8 @@ function initSidebar() {
       showInlineAdd(row.parentNode, dirPath);
     });
 
-    // ドロップゾーン: ルートに戻す場合
-    if (dirPath === "") {
-      setupDropZone(row, "");
-    }
+    // すべての階層でドロップを受け付ける（末尾並び替え/階層移動）
+    setupDropZone(row, dirPath || "");
 
     row.appendChild(btn);
     return row;
@@ -807,7 +1207,15 @@ function initSidebar() {
   function setupDropZone(element, targetDirPath) {
     element.addEventListener("dragover", function (e) {
       if (!dragState.dragging) return;
+      if (
+        dragState.dragging.type !== "dir" &&
+        dragState.dragging.type !== "page"
+      ) {
+        return;
+      }
+      if (isInvalidDirTarget(dragState.dragging, targetDirPath)) return;
       e.preventDefault();
+      e.stopPropagation();
       e.dataTransfer.dropEffect = "move";
       element.classList.add("drop-target");
     });
@@ -820,38 +1228,20 @@ function initSidebar() {
 
     element.addEventListener("drop", function (e) {
       e.preventDefault();
+      e.stopPropagation();
       element.classList.remove("drop-target");
       if (!dragState.dragging) return;
+      var targetParentPath = (targetDirPath || "").trim();
+      if (
+        dragState.dragging.type !== "dir" &&
+        dragState.dragging.type !== "page"
+      ) {
+        return;
+      }
+      if (isInvalidDirTarget(dragState.dragging, targetParentPath)) return;
 
-      var oldSlug = dragState.dragging.slug;
-      var fileName = oldSlug.split("/").pop();
-      var newSlug = targetDirPath ? targetDirPath + "/" + fileName : fileName;
-
-      if (oldSlug === newSlug) return;
-
-      fetch("/api/pages/move", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ old_slug: oldSlug, new_slug: newSlug }),
-      })
-        .then(function (res) {
-          return res.json();
-        })
-        .then(function (data) {
-          if (data.ok) {
-            loadTree();
-            loadHistory();
-            // 現在表示中のページが移動されたらリダイレクト
-            if (
-              decodeURIComponent(window.location.pathname) ===
-              "/pages/" + oldSlug
-            ) {
-              window.location.href = "/pages/" + encodeSlug(data.new_slug);
-            }
-          } else {
-            alert("移動に失敗しました: " + (data.error || ""));
-          }
-        });
+      var targetContainer = resolveDropContainer(element);
+      moveAndPlaceDraggedItem(targetContainer, targetParentPath, "", "after");
     });
   }
 
@@ -893,11 +1283,24 @@ function initSidebar() {
           return;
         }
         commits.forEach(function (c) {
+          var parsed = parseHistoryEntry(c.message || "");
+          var tagHtml = "";
+          if (parsed.kind) {
+            tagHtml =
+              '<span class="history-tag history-tag-' +
+              parsed.kind.toLowerCase() +
+              '">' +
+              escapeHtml(parsed.kind) +
+              "</span>";
+          }
           var div = document.createElement("div");
           div.className = "history-item";
           div.innerHTML =
             '<div class="history-item-message">' +
-            escapeHtml(c.message) +
+            tagHtml +
+            '<span class="history-message-text">' +
+            escapeHtml(parsed.text) +
+            "</span>" +
             "</div>" +
             '<div class="history-item-time">' +
             escapeHtml(c.timestamp_str) +
@@ -906,6 +1309,168 @@ function initSidebar() {
         });
       });
   }
+
+  function loadTrash() {
+    var container = document.getElementById("sidebar-trash");
+    if (!container) return;
+    fetch("/api/trash/pages", { cache: "no-store" })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        var items = (data && data.items) || [];
+        container.innerHTML = "";
+        if (!items.length) {
+          container.innerHTML = '<div class="trash-empty">ゴミ箱は空です</div>';
+          return;
+        }
+        items.forEach(function (item) {
+          var row = document.createElement("div");
+          row.className = "trash-item";
+
+          var link = document.createElement("a");
+          link.className = "trash-link";
+          link.href = "/trash/" + encodeURIComponent(item.id || "");
+          var deletedAt = item.deleted_at
+            ? String(item.deleted_at).replace("T", " ")
+            : "";
+          link.innerHTML =
+            '<span class="trash-title">' +
+            escapeHtml(item.title || item.slug || "(no title)") +
+            "</span>" +
+            '<span class="trash-meta">' +
+            escapeHtml(deletedAt) +
+            "</span>";
+
+          var restoreBtn = document.createElement("button");
+          restoreBtn.type = "button";
+          restoreBtn.className = "trash-restore-btn";
+          restoreBtn.textContent = "復元";
+          restoreBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            restoreBtn.disabled = true;
+            fetch(
+              "/api/trash/pages/" +
+                encodeURIComponent(item.id || "") +
+                "/restore",
+              {
+                method: "POST",
+              },
+            )
+              .then(function (res) {
+                return res.json();
+              })
+              .then(function (resData) {
+                if (!resData.ok) {
+                  throw new Error(resData.error || "復元に失敗しました");
+                }
+                loadTree();
+                loadHistory();
+                loadTrash();
+                var currentPath = decodeURIComponent(window.location.pathname);
+                var trashPath = "/trash/" + (item.id || "");
+                if (currentPath === trashPath) {
+                  window.location.href = "/pages/" + encodeSlug(resData.slug || "");
+                }
+              })
+              .catch(function (err) {
+                alert(err.message || "復元に失敗しました");
+                restoreBtn.disabled = false;
+              });
+          });
+
+          var deleteBtn = document.createElement("button");
+          deleteBtn.type = "button";
+          deleteBtn.className = "trash-delete-btn";
+          deleteBtn.textContent = "削除";
+          deleteBtn.addEventListener("click", function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!confirm("このページをゴミ箱から完全に削除します。")) return;
+            deleteBtn.disabled = true;
+            fetch("/api/trash/pages/" + encodeURIComponent(item.id || ""), {
+              method: "DELETE",
+            })
+              .then(function (res) {
+                return res.json();
+              })
+              .then(function (resData) {
+                if (!resData.ok) {
+                  throw new Error(resData.error || "削除に失敗しました");
+                }
+                loadTree();
+                loadHistory();
+                loadTrash();
+                var currentPath = decodeURIComponent(window.location.pathname);
+                var trashPath = "/trash/" + (item.id || "");
+                if (currentPath === trashPath) {
+                  window.location.href = "/pages/list";
+                }
+              })
+              .catch(function (err) {
+                alert(err.message || "削除に失敗しました");
+                deleteBtn.disabled = false;
+              });
+          });
+
+          row.appendChild(link);
+          row.appendChild(restoreBtn);
+          row.appendChild(deleteBtn);
+          container.appendChild(row);
+        });
+      })
+      .catch(function () {
+        container.innerHTML = '<div class="trash-empty">読み込みに失敗しました</div>';
+      });
+  }
+
+  function parseHistoryEntry(message) {
+    var text = String(message || "").trim();
+    var m = text.match(/^(Create|Edit|Move|Delete)\s*:\s*(.*)$/i);
+    if (!m) return { kind: "", text: text };
+    var kind = m[1].charAt(0).toUpperCase() + m[1].slice(1).toLowerCase();
+    var body = (m[2] || "").trim();
+    return { kind: kind, text: body || text };
+  }
+}
+
+function initPageTableOverflow() {
+  var tables = document.querySelectorAll(".page-view .page-body table");
+  tables.forEach(function (table) {
+    if (
+      table.parentElement &&
+      table.parentElement.classList &&
+      table.parentElement.classList.contains("page-table-scroll")
+    ) {
+      return;
+    }
+    var wrap = document.createElement("div");
+    wrap.className = "page-table-scroll";
+    table.parentNode.insertBefore(wrap, table);
+    wrap.appendChild(table);
+  });
+}
+
+function initPageHrAccent() {
+  var bodies = document.querySelectorAll(".page-body");
+  bodies.forEach(function (body) {
+    var hrs = body.querySelectorAll("hr");
+    var total = hrs.length;
+    if (!total) return;
+
+    hrs.forEach(function (hr, idx) {
+      var width;
+      if (total === 1) {
+        width = 100;
+      } else if (idx === total - 1) {
+        width = 100;
+      } else {
+        width = 22 + (78 * idx) / (total - 1);
+      }
+      hr.style.setProperty("--hr-accent-width", width.toFixed(1) + "%");
+    });
+  });
 }
 
 /* ---- 外部リンクの遷移ガード ---- */
@@ -937,6 +1502,71 @@ function initExternalLinkGuard() {
 
 function encodeSlugForAPI(slug) {
   return slug.split("/").map(encodeURIComponent).join("/");
+}
+
+function initPageCheckboxes() {
+  var panel = document.getElementById("thread-panel");
+  var slug = panel ? panel.dataset.slug : null;
+  var pageBody = document.querySelector(".page-body");
+  if (!slug || !pageBody) return;
+
+  var boxes = Array.prototype.slice.call(
+    pageBody.querySelectorAll('label.check-item input[type="checkbox"]'),
+  );
+  if (!boxes.length) return;
+
+  boxes.forEach(function (box, idx) {
+    if (!box.dataset.checkboxId) {
+      box.dataset.checkboxId = "cb-" + (idx + 1);
+    }
+  });
+
+  var states = {};
+  var saveTimer = null;
+
+  function applyStates(next) {
+    states = next || {};
+    boxes.forEach(function (box) {
+      var id = box.dataset.checkboxId;
+      if (!id) return;
+      if (Object.prototype.hasOwnProperty.call(states, id)) {
+        box.checked = !!states[id];
+      }
+    });
+  }
+
+  function collectStates() {
+    boxes.forEach(function (box) {
+      var id = box.dataset.checkboxId;
+      if (!id) return;
+      states[id] = !!box.checked;
+    });
+    return states;
+  }
+
+  function saveStatesSoon() {
+    if (saveTimer) clearTimeout(saveTimer);
+    saveTimer = setTimeout(function () {
+      fetch("/api/pages/" + encodeSlugForAPI(slug) + "/checkboxes", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ states: collectStates() }),
+      }).catch(function () {});
+    }, 200);
+  }
+
+  fetch("/api/pages/" + encodeSlugForAPI(slug) + "/checkboxes")
+    .then(function (r) {
+      return r.json();
+    })
+    .then(function (data) {
+      applyStates((data && data.states) || {});
+    })
+    .catch(function () {});
+
+  boxes.forEach(function (box) {
+    box.addEventListener("change", saveStatesSoon);
+  });
 }
 
 function initComments() {
@@ -1046,17 +1676,11 @@ function initComments() {
         if (y > maxY) y = maxY;
         placeFloatButton(rect.left, y);
       } else if (lastMouse) {
-        placeFloatButton(
-          lastMouse.x,
-          lastMouse.y - 8,
-        );
+        placeFloatButton(lastMouse.x, lastMouse.y - 8);
       } else {
         var bodyRect = pageBody.getBoundingClientRect();
         if (bodyRect && isFinite(bodyRect.right) && isFinite(bodyRect.top)) {
-          placeFloatButton(
-            bodyRect.right - 140,
-            bodyRect.top + 8,
-          );
+          placeFloatButton(bodyRect.right - 140, bodyRect.top + 8);
         } else {
           floatBtn.style.display = "none";
           return;
@@ -1473,7 +2097,6 @@ function initComments() {
     panelBody.appendChild(card);
   }
 
-
   function patchThread(tid, action, shouldClose) {
     fetch("/api/pages/" + encodeSlugForAPI(slug) + "/threads/" + tid, {
       method: "PATCH",
@@ -1507,6 +2130,15 @@ function escapeHtml(text) {
   var div = document.createElement("div");
   div.textContent = text;
   return div.innerHTML;
+}
+
+function escapeAttr(text) {
+  return String(text || "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
 /* ---- インクリメンタルサーチ ---- */
@@ -1611,10 +2243,14 @@ function initLiveSearch() {
 
       link.appendChild(title);
 
-      if (r.snippet) {
+      if (r.snippet || r.snippet_html) {
         var snippet = document.createElement("div");
         snippet.className = "search-dropdown-snippet";
-        snippet.innerHTML = highlightMatch(r.snippet, query);
+        if (r.snippet_html) {
+          snippet.innerHTML = r.snippet_html;
+        } else {
+          snippet.innerHTML = highlightMatch(r.snippet, query);
+        }
         link.appendChild(snippet);
       }
 
@@ -1978,9 +2614,7 @@ function initWatcherBoard() {
     }
 
     function isPrefCountLine(text) {
-      return /^.+(都|道|府|県)\s*[：:]\s*[0-9０-９]+(?:軒)?$/.test(
-        text.trim(),
-      );
+      return /^.+(都|道|府|県)\s*[：:]\s*[0-9０-９]+(?:軒)?$/.test(text.trim());
     }
 
     function renderIndented(line) {
@@ -2038,44 +2672,44 @@ function initWatcherBoard() {
             }
           }
 
-        if (route || status) {
-          var headlineParts = [];
-          if (route) {
-            headlineParts.push(
-              '<strong class="train-line" style="font-weight:bold;color:#000;">' +
+          if (route || status) {
+            var headlineParts = [];
+            if (route) {
+              headlineParts.push(
+                '<strong class="train-line" style="font-weight:bold;color:#000;">' +
                   escapeHtml(route) +
                   "</strong>",
-            );
+              );
+            }
+            if (status) {
+              headlineParts.push(colorizeTrainStatus(status));
+            }
+            htmlLines.push(headlineParts.join(" "));
           }
-          if (status) {
-            headlineParts.push(colorizeTrainStatus(status));
-          }
-          htmlLines.push(headlineParts.join(" "));
-        }
 
-        var headlineStatus = status || "";
-        others.forEach(function (line) {
-          line
-            .split(" / ")
-            .map(function (part) {
-              return part.trim();
-            })
-            .filter(function (part) {
-              return part.length > 0;
-            })
-            .forEach(function (part) {
-              if (headlineStatus && part.indexOf(headlineStatus) === 0) {
-                var trimmed = part.slice(headlineStatus.length).trim();
-                part = trimmed || part;
-              }
-              htmlLines.push(colorizeTrainStatus(part));
-            });
-        });
-      } else {
-        lines.forEach(function (line) {
-          htmlLines.push(renderIndented(line));
-        });
-      }
+          var headlineStatus = status || "";
+          others.forEach(function (line) {
+            line
+              .split(" / ")
+              .map(function (part) {
+                return part.trim();
+              })
+              .filter(function (part) {
+                return part.length > 0;
+              })
+              .forEach(function (part) {
+                if (headlineStatus && part.indexOf(headlineStatus) === 0) {
+                  var trimmed = part.slice(headlineStatus.length).trim();
+                  part = trimmed || part;
+                }
+                htmlLines.push(colorizeTrainStatus(part));
+              });
+          });
+        } else {
+          lines.forEach(function (line) {
+            htmlLines.push(renderIndented(line));
+          });
+        }
 
         return (
           '<div class="watcher-alert-block">' +
@@ -2422,6 +3056,17 @@ function initWatcherBoard() {
         var lastChecked = nightActive
           ? "-"
           : formatIso(t.last_checked || data.last_run || "");
+        var siteUrl = t.site_url || "";
+        var watcherNameHtml = siteUrl
+          ? '<a class="watcher-name-link" href="' +
+            escapeAttr(siteUrl) +
+            '" target="_blank" rel="noopener noreferrer" title="元サイトを新しいタブで開く">' +
+            '<span class="watcher-name-text">' +
+            escapeHtml(t.name || "-") +
+            "</span>" +
+            '<span class="watcher-name-external" aria-hidden="true">↗</span>' +
+            "</a>"
+          : escapeHtml(t.name || "-");
 
         return (
           "" +
@@ -2431,7 +3076,7 @@ function initWatcherBoard() {
           '  <div class="watcher-card-header">' +
           '    <div class="watcher-name-row">' +
           '      <div class="watcher-name">' +
-          escapeHtml(t.name || "-") +
+          watcherNameHtml +
           "</div>" +
           (enabled ? "" : '<span class="watcher-disabled-tag">OFF</span>') +
           "</div>" +

@@ -1,22 +1,101 @@
-{% extends "base.html" %}
-{% block title %}差分表示 - {{ page.title }} - {{ site_name }}{% endblock %}
-{% block content %}
-<h2>「{{ page.title }}」の差分</h2>
+{% extends "base.html" %} {% block title %}比較表示 - {{ page.title }} - {{
+site_name }}{% endblock %} {% block content %}
+<h2>「{{ page.title }}」の比較表示</h2>
 <p>
-    <a href="{{ url_for('pages.view_page', slug=page.slug) }}">ページに戻る</a> |
-    <a href="{{ url_for('history.page_history', slug=page.slug) }}">履歴に戻る</a>
+  <a href="{{ url_for('pages.view_page', slug=page.slug) }}">ページに戻る</a> |
+  <a href="{{ url_for('history.page_history', slug=page.slug) }}">履歴に戻る</a>
 </p>
 <p class="diff-info">
-    <span>旧: {{ commit_a[:8] }}</span> → <span>新: {{ commit_b[:8] }}</span>
+  <span>左: {{ old_revision }}</span> →
+  <span
+    >右: {% if compare_mode == "latest" %}最新 ({{ new_revision }}){% else %}{{
+    new_revision }}{% endif %}</span
+  >
+  <form
+    action="{{ url_for('history.restore_page', slug=page.slug, commit_id=old_commit_id) }}"
+    method="post"
+    class="inline-form diff-restore-form"
+    onsubmit="return confirm('左側のバージョンに復元しますか？');"
+  >
+    <button type="submit" class="btn btn-small btn-secondary">
+      このバージョンに戻す
+    </button>
+  </form>
+</p>
+<p class="diff-legend">
+  <span class="diff-legend-item diff-legend-added">追加部分</span>
+  <span class="diff-legend-item diff-legend-removed">削除部分</span>
 </p>
 <div class="diff-container">
-    <div class="diff-panel">
-        <h3>旧</h3>
-        <pre class="diff-content">{{ old_content }}</pre>
+  <div class="diff-panel">
+    <h3>左: {{ old_revision }}</h3>
+    <div class="page-body diff-rendered-body" id="diff-old-body">
+      {{ old_html | safe }}
     </div>
-    <div class="diff-panel">
-        <h3>新</h3>
-        <pre class="diff-content">{{ new_content }}</pre>
+  </div>
+  <div class="diff-panel">
+    <h3>
+      右: {% if compare_mode == "latest" %}最新{% else %}{{ new_revision }}{%
+      endif %}
+    </h3>
+    <div class="page-body diff-rendered-body" id="diff-new-body">
+      {{ new_html | safe }}
     </div>
+  </div>
 </div>
+{% endblock %} {% block scripts %}
+<script>
+  function normalizeDiffText(text) {
+    return (text || "").replace(/\s+/g, " ").trim();
+  }
+
+  function collectDiffBlocks(root) {
+    if (!root) return [];
+    var selector = "h1,h2,h3,h4,h5,h6,p,li,blockquote,pre,td,th";
+    return Array.prototype.filter.call(
+      root.querySelectorAll(selector),
+      function (el) {
+        return normalizeDiffText(el.textContent).length > 0;
+      },
+    );
+  }
+
+  function countByText(elements) {
+    var map = new Map();
+    elements.forEach(function (el) {
+      var key = normalizeDiffText(el.textContent);
+      if (!key) return;
+      map.set(key, (map.get(key) || 0) + 1);
+    });
+    return map;
+  }
+
+  function highlightByDelta(targetElements, oppositeCounts, className) {
+    var seen = new Map();
+    targetElements.forEach(function (el) {
+      var key = normalizeDiffText(el.textContent);
+      if (!key) return;
+      var count = (seen.get(key) || 0) + 1;
+      seen.set(key, count);
+      var limit = oppositeCounts.get(key) || 0;
+      if (count > limit) {
+        el.classList.add(className);
+      }
+    });
+  }
+
+  document.addEventListener("DOMContentLoaded", function () {
+    var oldBody = document.getElementById("diff-old-body");
+    var newBody = document.getElementById("diff-new-body");
+    if (!oldBody || !newBody) return;
+
+    var oldBlocks = collectDiffBlocks(oldBody);
+    var newBlocks = collectDiffBlocks(newBody);
+    var oldCounts = countByText(oldBlocks);
+    var newCounts = countByText(newBlocks);
+
+    highlightByDelta(newBlocks, oldCounts, "diff-added");
+    highlightByDelta(oldBlocks, newCounts, "diff-removed");
+  });
+</script>
 {% endblock %}

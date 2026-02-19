@@ -5,7 +5,7 @@
 }
 
 body {
-  font-family: "Yu Gothic UI", "Meiryo", sans-serif;
+  font-family: "Noto Sans JP", "Noto Sans", sans-serif;
   background: #f0f2f5;
   color: #333;
   display: flex;
@@ -300,7 +300,7 @@ table tr:hover td {
   color: #e2e8f0;
   padding: 16px;
   border-radius: 6px;
-  font-family: "Consolas", "Courier New", monospace;
+  font-family: "Noto Sans JP", "Noto Sans", sans-serif;
   font-size: 12px;
   line-height: 1.6;
   max-height: 500px;
@@ -313,7 +313,7 @@ table tr:hover td {
 .config-editor {
   width: 100%;
   min-height: 300px;
-  font-family: "Consolas", "Courier New", monospace;
+  font-family: "Noto Sans JP", "Noto Sans", sans-serif;
   font-size: 13px;
   padding: 12px;
   border: 1px solid #d1d5db;

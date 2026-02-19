@@ -95,6 +95,8 @@ def update_index(
 
 
 def _resolve_target_url(target: dict) -> str:
+    if target.get("site_url"):
+        return target.get("site_url", "")
     if target.get("url"):
         return target.get("url", "")
     target_type = target.get("type", "")

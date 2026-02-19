@@ -66,7 +66,7 @@ def create_app() -> Flask:
             return ""
         try:
             dt = datetime.fromisoformat(value)
-            return f"{dt.year}-{dt.month}-{dt.day:02d} {dt.hour}:{dt.minute:02d}:{dt.second:02d}"
+            return f"{dt.year}-{dt.month:02d}-{dt.day:02d} {dt.hour:02d}:{dt.minute:02d}:{dt.second:02d}"
         except (ValueError, TypeError):
             return value
 
@@ -165,6 +165,11 @@ def create_app() -> Flask:
                 "last_alert_at": entry.get("last_alert_at", ""),
                 "last_alert_summary": entry.get("last_alert_summary", ""),
                 "last_info_summary": entry.get("last_info_summary", ""),
+                "site_url": t.get("site_url")
+                or t.get("url")
+                or t.get("warning_url")
+                or t.get("base_url")
+                or "",
                 "url": t.get("url")
                 or t.get("warning_url")
                 or t.get("base_url")

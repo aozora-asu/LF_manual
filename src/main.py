@@ -236,7 +236,12 @@ def _start_admin_thread() -> threading.Thread:
     host = admin_config.get("host", "127.0.0.1")
     port = admin_config.get("port", 8081)
     t = threading.Thread(
-        target=lambda: admin_app.run(host=host, port=port, use_reloader=False),
+        target=lambda: admin_app.run(
+            host=host,
+            port=port,
+            use_reloader=False,
+            threaded=True,
+        ),
         daemon=True,
         name="admin",
     )
@@ -295,7 +300,13 @@ def main() -> None:
 
     app = create_app()
     logger.info("Flask サーバ起動: %s:%s", host, port)
-    app.run(host=host, port=port, debug=app_config.get("debug", False), use_reloader=False)
+    app.run(
+        host=host,
+        port=port,
+        debug=app_config.get("debug", False),
+        use_reloader=False,
+        threaded=True,
+    )
 
 
 if __name__ == "__main__":

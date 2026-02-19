@@ -2,36 +2,53 @@
 <html lang="ja">
   <head>
     <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>{{ site_name }} - 全ページ印刷</title>
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/style.css') }}"
+    />
     <style>
       body {
-        font-family: "Yu Gothic UI", "Hiragino Sans", sans-serif;
-        max-width: 900px;
+        background: #fff;
+        margin: 0;
+        padding: 0;
+      }
+      .print-shell {
+        max-width: 1120px;
         margin: 0 auto;
-        padding: 20px;
-        color: #111827;
+        padding: 18px 16px 24px;
       }
       .no-print {
-        margin-bottom: 16px;
-      }
-      .page-block {
-        page-break-before: always;
-        page-break-after: always;
-        margin-bottom: 24px;
-      }
-      .page-block:first-child {
-        page-break-before: auto;
-      }
-      .page-block:last-child {
-        page-break-after: auto;
-      }
-      h1 {
-        border-bottom: 2px solid #333;
-        padding-bottom: 8px;
         margin-bottom: 12px;
       }
-      .page-body {
-        line-height: 1.7;
+      .print-page {
+        page-break-before: always;
+        page-break-after: always;
+        margin-bottom: 16px;
+      }
+      .print-page:first-child {
+        page-break-before: auto;
+      }
+      .print-page:last-child {
+        page-break-after: auto;
+      }
+      .page-body hr {
+        border: none;
+        height: 4px;
+        margin: 0.5em 0;
+        background: rgba(0, 0, 0, 0.12);
+        border-radius: 999px;
+        overflow: hidden;
+        position: relative;
+      }
+      .page-body hr::before {
+        content: "";
+        position: absolute;
+        inset: 0 auto 0 0;
+        width: var(--hr-accent-width, 28%);
+        background: #293382;
+        border-radius: 999px;
       }
       .page-meta {
         margin-top: 12px;
@@ -42,33 +59,87 @@
         .no-print {
           display: none;
         }
-        body {
+        .print-shell {
           max-width: none;
           margin: 0;
           padding: 0;
+        }
+        .page-view {
+          margin: 0;
         }
       }
     </style>
   </head>
   <body>
-    <div class="no-print">
-      <button onclick="window.print()">PDFに保存（印刷）</button>
+    <div class="print-shell">
+      <div class="no-print">
+        <button class="btn btn-secondary" onclick="window.print()">
+          PDFに保存（印刷）
+        </button>
+      </div>
+      {% for page in pages %}
+        <section class="print-page">
+          <article class="page-view">
+            <div class="page-header">
+              <h1>{{ page.title }}</h1>
+            </div>
+            <div class="page-body">
+              {{ page.html | safe }}
+            </div>
+            <div class="page-meta">
+              作成: {{ page.created }} / 更新: {{ page.updated }} / {{ page.slug }}
+            </div>
+          </article>
+        </section>
+      {% endfor %}
     </div>
-    {% for page in pages %}
-      <section class="page-block">
-        <h1>{{ page.title }}</h1>
-        <div class="page-body">
-          {{ page.html | safe }}
-        </div>
-        <div class="page-meta">
-          作成: {{ page.created }} / 更新: {{ page.updated }} / {{ page.slug }}
-        </div>
-      </section>
-    {% endfor %}
+    <script>
+      function wrapTables() {
+        document.querySelectorAll(".page-body table").forEach(function (table) {
+          if (
+            table.parentElement &&
+            table.parentElement.classList &&
+            table.parentElement.classList.contains("page-table-scroll")
+          ) {
+            return;
+          }
+          var wrap = document.createElement("div");
+          wrap.className = "page-table-scroll";
+          table.parentNode.insertBefore(wrap, table);
+          wrap.appendChild(table);
+        });
+      }
+
+      function applyHrAccentForPrint() {
+        document.querySelectorAll(".page-body").forEach(function (body) {
+          var hrs = body.querySelectorAll("hr");
+          var total = hrs.length;
+          if (!total) return;
+          hrs.forEach(function (hr, idx) {
+            var width;
+            if (total === 1) {
+              width = 100;
+            } else if (idx === total - 1) {
+              width = 100;
+            } else {
+              width = 22 + (78 * idx) / (total - 1);
+            }
+            hr.style.setProperty("--hr-accent-width", width.toFixed(1) + "%");
+          });
+        });
+      }
+
+      window.addEventListener("load", function () {
+        wrapTables();
+        applyHrAccentForPrint();
+      });
+    </script>
     {% if autoprint %}
       <script>
         window.addEventListener("load", function () {
           setTimeout(function () {
+            wrapTables();
+            applyHrAccentForPrint();
             window.print();
           }, 300);
         });

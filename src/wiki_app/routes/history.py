@@ -5,6 +5,7 @@ from flask import Blueprint, render_template, redirect, url_for, abort, jsonify
 from src.common.config import load_config
 from src.wiki_app.services.repo_service import RepoService
 from src.wiki_app.services.page_service import PageService
+from src.wiki_app.routes.pages import _render_md
 
 history_bp = Blueprint("history", __name__)
 
@@ -16,6 +17,21 @@ def init_history(repo_service: RepoService, page_service: PageService) -> None:
     global _repo_service, _page_service
     _repo_service = repo_service
     _page_service = page_service
+
+
+def _render_revision(slug: str, commit_id: str) -> dict:
+    """指定コミットのMarkdownを取得してレンダリング済みHTMLを返す。"""
+    content_bytes = _repo_service.show(commit_id, f"pages/{slug}.md")
+    content_text = content_bytes.decode("utf-8")
+
+    import frontmatter
+
+    post = frontmatter.loads(content_text)
+    return {
+        "title": post.get("title") or slug,
+        "body": post.content,
+        "html": _render_md(post.content),
+    }
 
 
 @history_bp.route("/pages/<path:slug>/history")
@@ -42,7 +58,6 @@ def page_history(slug):
 @history_bp.route("/pages/<path:slug>/history/<commit_id>")
 def page_revision(slug, commit_id):
     wiki_config = load_config("wiki")
-    import markdown as md
 
     page = _page_service.get_page(slug)
     if not page:
@@ -56,8 +71,7 @@ def page_revision(slug, commit_id):
 
     import frontmatter
     post = frontmatter.loads(content_text)
-    extensions = load_config("wiki").get("markdown_extensions", [])
-    html_content = md.markdown(post.content, extensions=extensions)
+    html_content = _render_md(post.content)
 
     return render_template(
         "page_view.html",
@@ -75,15 +89,50 @@ def page_diff(slug, commit_a, commit_b):
     if not page:
         abort(404)
 
-    diff_data = _repo_service.diff(commit_a, commit_b, f"pages/{slug}.md")
+    try:
+        old_rev = _render_revision(slug, commit_a)
+        new_rev = _render_revision(slug, commit_b)
+    except (FileNotFoundError, KeyError):
+        abort(404)
 
     return render_template(
         "page_diff.html",
         page=page,
-        old_content=diff_data["old"],
-        new_content=diff_data["new"],
-        commit_a=commit_a,
-        commit_b=commit_b,
+        old_html=old_rev["html"],
+        new_html=new_rev["html"],
+        old_commit_id=commit_a,
+        old_revision=commit_a[:8],
+        new_revision=commit_b[:8],
+        compare_mode="revision",
+        site_name=wiki_config.get("site_name", "Wiki"),
+    )
+
+
+@history_bp.route("/pages/<path:slug>/compare/<commit_id>")
+def page_compare_latest(slug, commit_id):
+    """指定リビジョンと現在の最新版を左右比較する。"""
+    wiki_config = load_config("wiki")
+    page = _page_service.get_page(slug)
+    if not page:
+        abort(404)
+
+    try:
+        old_rev = _render_revision(slug, commit_id)
+    except (FileNotFoundError, KeyError):
+        abort(404)
+
+    latest_commit = _repo_service.log(f"pages/{slug}.md", max_count=1)
+    latest_revision = latest_commit[0]["id"][:8] if latest_commit else "latest"
+
+    return render_template(
+        "page_diff.html",
+        page=page,
+        old_html=old_rev["html"],
+        new_html=_render_md(page.body),
+        old_commit_id=commit_id,
+        old_revision=commit_id[:8],
+        new_revision=latest_revision,
+        compare_mode="latest",
         site_name=wiki_config.get("site_name", "Wiki"),
     )
 

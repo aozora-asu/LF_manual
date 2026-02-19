@@ -466,6 +466,11 @@ document.addEventListener("DOMContentLoaded", () => {
           "outage",
           "generic",
         ]),
+        site_url: createTextField(
+          grid,
+          "site_url",
+          t.site_url ?? defaultSiteUrlForType(t.type, t)
+        ),
         url: maybeCreateTextField(grid, "URL", t.url),
         warning_url: maybeCreateTextField(grid, "warning_url", t.warning_url),
         area_url: maybeCreateTextField(grid, "area_url", t.area_url),
@@ -488,6 +493,7 @@ document.addEventListener("DOMContentLoaded", () => {
       targetState.name.parentElement.classList.add("config-field-wide");
       targetState.enabled.parentElement.classList.add("config-field-compact");
       targetState.interval.parentElement.classList.add("config-field-compact");
+      targetState.site_url.parentElement.classList.add("config-field-wide");
       targetState.alert_statuses.parentElement.classList.add("config-field-wide");
       targetState.warning_codes.parentElement.classList.add("config-field-wide");
       targetState.threshold.parentElement.classList.add("config-field-wide");
@@ -528,6 +534,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const interval = numberValue(t.interval, DEFAULT_TARGET_INTERVAL);
       target.interval_seconds = interval;
 
+      if (t.site_url) setIfValue(target, "site_url", t.site_url.value);
       if (t.url) setIfValue(target, "url", t.url.value);
       if (t.warning_url) setIfValue(target, "warning_url", t.warning_url.value);
       if (t.area_url) setIfValue(target, "area_url", t.area_url.value);
@@ -614,6 +621,20 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function setIfValue(obj, key, value) {
     if (value && value.trim() !== "") obj[key] = value.trim();
+  }
+
+  function defaultSiteUrlForType(type, target) {
+    if (target && hasValue(target.site_url)) return target.site_url;
+    if (type === "train") {
+      return "https://transit.yahoo.co.jp/diainfo/area/4";
+    }
+    if (type === "weather") {
+      return "https://www.jma.go.jp/bosai/map.html#5/34.5/137/&elem=all&contents=warning";
+    }
+    if (type === "outage") {
+      return "https://teideninfo.tepco.co.jp/";
+    }
+    return "";
   }
 
   function numberValue(input, fallback) {

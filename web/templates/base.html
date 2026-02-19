@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>{% block title %}{{ site_name }}{% endblock %}</title>
+    <title>{{ site_name }}</title>
     <link
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
@@ -63,6 +63,12 @@
         </div>
         <div class="sidebar-section">
           <div class="sidebar-section-header">
+            <span>ゴミ箱</span>
+          </div>
+          <div class="sidebar-trash" id="sidebar-trash"></div>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-section-header">
             <span>更新履歴</span>
           </div>
           <div class="sidebar-history" id="sidebar-history"></div>
@@ -73,9 +79,7 @@
           <div class="watcher-board-header">
             <div class="watcher-board-title">
               <h2>Web監視状況</h2>
-              <a
-                class="watcher-config-link"
-                href="{{ admin_url }}#sec-config"
+              <a class="watcher-config-link" href="{{ admin_url }}#sec-config"
                 >監視条件の変更</a
               >
               <label class="watcher-alert-toggle">
@@ -90,7 +94,12 @@
               </label>
               <div class="watcher-night-range">
                 <span>停止</span>
-                <input type="number" min="0" max="23" id="watcher-night-start" />
+                <input
+                  type="number"
+                  min="0"
+                  max="23"
+                  id="watcher-night-start"
+                />
                 <span>再開</span>
                 <input type="number" min="0" max="23" id="watcher-night-end" />
               </div>

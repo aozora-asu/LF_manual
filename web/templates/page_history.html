@@ -5,56 +5,29 @@
 <p><a href="{{ url_for('pages.view_page', slug=page.slug) }}">ページに戻る</a></p>
 
 {% if commits %}
-<form id="diff-form" class="diff-form">
     <table class="history-table">
         <thead>
             <tr>
-                <th>旧</th>
-                <th>新</th>
+                <th>表示</th>
                 <th>日時</th>
                 <th>メッセージ</th>
-                <th>操作</th>
             </tr>
         </thead>
         <tbody>
             {% for commit in commits %}
             <tr>
-                <td><input type="radio" name="commit_a" value="{{ commit.id }}"></td>
-                <td><input type="radio" name="commit_b" value="{{ commit.id }}"></td>
+                <td>
+                    <a href="{{ url_for('history.page_compare_latest', slug=page.slug, commit_id=commit.id) }}" class="btn btn-small history-compare-btn">
+                        比較表示
+                    </a>
+                </td>
                 <td>{{ commit.timestamp_str }}</td>
                 <td>{{ commit.message }}</td>
-                <td>
-                    <a href="{{ url_for('history.page_revision', slug=page.slug, commit_id=commit.id) }}" class="icon-btn icon-btn-sm" title="表示">
-                        <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M1 7s2.5-5 6-5 6 5 6 5-2.5 5-6 5-6-5-6-5z" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="2" stroke="currentColor" stroke-width="1.3"/></svg>
-                    </a>
-                    <form action="{{ url_for('history.restore_page', slug=page.slug, commit_id=commit.id) }}" method="post" class="inline-form"
-                          onsubmit="return confirm('このリビジョンに復元しますか？');">
-                        <button type="submit" class="icon-btn icon-btn-sm" title="復元">
-                            <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2v4h4" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M2.5 6A5.5 5.5 0 117.5 12.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/></svg>
-                        </button>
-                    </form>
-                </td>
             </tr>
             {% endfor %}
         </tbody>
     </table>
-    <button type="button" class="btn" onclick="compareDiff()">差分を比較</button>
-</form>
 {% else %}
 <p>履歴がありません。</p>
 {% endif %}
-{% endblock %}
-{% block scripts %}
-<script>
-function compareDiff() {
-    var commitA = document.querySelector('input[name="commit_a"]:checked');
-    var commitB = document.querySelector('input[name="commit_b"]:checked');
-    if (!commitA || !commitB) {
-        alert('比較する2つのリビジョンを選択してください。');
-        return;
-    }
-    var slug = '{{ page.slug }}';
-    window.location.href = '/pages/' + slug + '/diff/' + commitA.value + '/' + commitB.value;
-}
-</script>
 {% endblock %}

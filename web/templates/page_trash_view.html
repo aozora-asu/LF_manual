@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block title %}{{ page.title }}（ゴミ箱） - {{ site_name }}{% endblock %}
+{% block content %}
+<nav class="breadcrumb">
+  <div class="breadcrumb-path">
+    <a href="{{ url_for('pages.index') }}">Home</a>
+    <span class="breadcrumb-sep">&gt;</span>
+    <span class="breadcrumb-dir">ゴミ箱</span>
+    <span class="breadcrumb-sep">&gt;</span>
+    <span class="breadcrumb-current">{{ page.title }}</span>
+  </div>
+  <div class="breadcrumb-meta">
+    <span>削除: {{ trash_meta.deleted_at | fmt_datetime }}</span>
+    <span>元slug: {{ trash_meta.slug }}</span>
+  </div>
+</nav>
+<article class="page-view">
+  <div class="page-header">
+    <h1>{{ page.title }}（ゴミ箱）</h1>
+    <div class="page-actions">
+      <button type="button" class="btn" id="restore-trash-page-btn">このページを復元</button>
+      <button type="button" class="btn btn-secondary" id="purge-trash-page-btn">
+        ゴミ箱から削除
+      </button>
+    </div>
+  </div>
+  <div class="page-body">{{ html_content | safe }}</div>
+</article>
+{% endblock %}
+{% block scripts %}
+<script>
+  (function () {
+    var btn = document.getElementById("restore-trash-page-btn");
+    var purgeBtn = document.getElementById("purge-trash-page-btn");
+    if (btn) {
+      btn.addEventListener("click", function () {
+        btn.disabled = true;
+        fetch("/api/trash/pages/{{ trash_meta.id }}/restore", {
+          method: "POST",
+        })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data.ok) {
+              throw new Error(data.error || "復元に失敗しました");
+            }
+            window.location.href = "/pages/" + encodeURIComponent(data.slug).replace(/%2F/g, "/");
+          })
+          .catch(function (err) {
+            alert(err.message || "復元に失敗しました");
+            btn.disabled = false;
+          });
+      });
+    }
+
+    if (purgeBtn) {
+      purgeBtn.addEventListener("click", function () {
+        if (!confirm("このページをゴミ箱から完全に削除します。元に戻せません。")) {
+          return;
+        }
+        purgeBtn.disabled = true;
+        fetch("/api/trash/pages/{{ trash_meta.id }}", {
+          method: "DELETE",
+        })
+          .then(function (res) {
+            return res.json();
+          })
+          .then(function (data) {
+            if (!data.ok) {
+              throw new Error(data.error || "削除に失敗しました");
+            }
+            window.location.href = "/pages/list";
+          })
+          .catch(function (err) {
+            alert(err.message || "削除に失敗しました");
+            purgeBtn.disabled = false;
+          });
+      });
+    }
+  })();
+</script>
+{% endblock %}

@@ -39,7 +39,9 @@ def ensure_dirs() -> None:
     """data/, state/, logs/ ディレクトリを自動作成する"""
     dirs = [
         get_data_dir() / "pages",
+        get_data_dir() / "images",
         get_data_dir() / "comments",
+        get_data_dir() / "trash" / "pages",
         get_state_dir() / "watcher" / "snapshots",
         get_state_dir() / "watcher" / "events",
         get_logs_dir(),
