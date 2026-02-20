@@ -34,6 +34,23 @@ def create_admin_app() -> Flask:
         static_folder=str(web_dir / "admin" / "static"),
         static_url_path="/static",
     )
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    app.jinja_env.auto_reload = True
+
+    @app.after_request
+    def disable_cache(response):
+        cache_targets = {
+            "text/html",
+            "text/css",
+            "application/javascript",
+            "application/json",
+        }
+        if request.path.startswith("/static/") or response.mimetype in cache_targets:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
 
     repo_service = RepoService(get_data_dir())
     page_service = PageService(repo_service)

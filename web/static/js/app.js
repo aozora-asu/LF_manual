@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initPageHrAccent();
   initSidebar();
   initLiveSearch();
+  initUiPatternSwitcher();
   initWatcherBoard();
   initExternalLinkGuard();
 });
@@ -178,10 +179,22 @@ function initSidebar() {
     nameSpan.textContent = node.name;
     nameSpan.title = "ダブルクリックで名前変更";
 
+    // ディレクトリ用「...」メニューボタン（名前変更）
+    var moreBtn = document.createElement("button");
+    moreBtn.className = "tree-more-btn tree-more-btn-dir";
+    moreBtn.innerHTML = SVG.more;
+    moreBtn.title = "メニュー（名前変更）";
+    moreBtn.addEventListener("click", function (e) {
+      e.stopPropagation();
+      e.preventDefault();
+      showDirectoryDropdown(dirDiv, label, nameSpan);
+    });
+
     label.appendChild(grip);
     label.appendChild(arrow);
     label.appendChild(folderIcon);
     label.appendChild(nameSpan);
+    label.appendChild(moreBtn);
 
     var childrenDiv = document.createElement("div");
     childrenDiv.className = "tree-dir-children";
@@ -198,8 +211,7 @@ function initSidebar() {
     }
 
     label.addEventListener("click", function (e) {
-      if (e.target.closest(".tree-grip"))
-        return;
+      if (e.target.closest(".tree-grip")) return;
       arrow.classList.toggle("open");
       childrenDiv.classList.toggle("open");
       folderIcon.innerHTML = arrow.classList.contains("open")
@@ -847,6 +859,37 @@ function initSidebar() {
     }, 0);
   }
 
+  function showDirectoryDropdown(dirDiv, label, nameSpan) {
+    closeAllDropdowns();
+
+    var dropdown = document.createElement("div");
+    dropdown.className = "tree-dropdown";
+
+    var editItem = document.createElement("div");
+    editItem.className = "tree-dropdown-item";
+    editItem.textContent = "名前を変更";
+    editItem.addEventListener("click", function (e) {
+      e.stopPropagation();
+      closeAllDropdowns();
+      startDirectoryInlineEdit(dirDiv, nameSpan);
+    });
+
+    dropdown.appendChild(editItem);
+    label.appendChild(dropdown);
+
+    function onClickOutside(e) {
+      var triggerBtn = label.querySelector(".tree-more-btn-dir");
+      if (!dropdown.contains(e.target) && e.target !== triggerBtn) {
+        closeAllDropdowns();
+        document.removeEventListener("click", onClickOutside, true);
+      }
+    }
+
+    setTimeout(function () {
+      document.addEventListener("click", onClickOutside, true);
+    }, 0);
+  }
+
   /* ---- インラインタイトル編集 ---- */
 
   function startDirectoryInlineEdit(dirDiv, nameSpan) {
@@ -1295,12 +1338,33 @@ function initSidebar() {
           }
           var div = document.createElement("div");
           div.className = "history-item";
+          var messageTextHtml = "";
+          var linkUrl = String(c.view_url || "").trim();
+          var versionLabel = String(c.version_label || "").trim();
+          var versionBadgeHtml = versionLabel
+            ? '<span class="history-version-badge">' +
+              escapeHtml(versionLabel) +
+              "</span>"
+            : "";
+          if (linkUrl) {
+            messageTextHtml =
+              '<a class="history-message-text history-message-link" href="' +
+              encodeURI(linkUrl) +
+              '">' +
+              escapeHtml(parsed.text) +
+              "</a>" +
+              versionBadgeHtml;
+          } else {
+            messageTextHtml =
+              '<span class="history-message-text">' +
+              escapeHtml(parsed.text) +
+              "</span>" +
+              versionBadgeHtml;
+          }
           div.innerHTML =
             '<div class="history-item-message">' +
             tagHtml +
-            '<span class="history-message-text">' +
-            escapeHtml(parsed.text) +
-            "</span>" +
+            messageTextHtml +
             "</div>" +
             '<div class="history-item-time">' +
             escapeHtml(c.timestamp_str) +
@@ -1371,7 +1435,8 @@ function initSidebar() {
                 var currentPath = decodeURIComponent(window.location.pathname);
                 var trashPath = "/trash/" + (item.id || "");
                 if (currentPath === trashPath) {
-                  window.location.href = "/pages/" + encodeSlug(resData.slug || "");
+                  window.location.href =
+                    "/pages/" + encodeSlug(resData.slug || "");
                 }
               })
               .catch(function (err) {
@@ -1421,7 +1486,8 @@ function initSidebar() {
         });
       })
       .catch(function () {
-        container.innerHTML = '<div class="trash-empty">読み込みに失敗しました</div>';
+        container.innerHTML =
+          '<div class="trash-empty">読み込みに失敗しました</div>';
       });
   }
 
@@ -1433,6 +1499,64 @@ function initSidebar() {
     var body = (m[2] || "").trim();
     return { kind: kind, text: body || text };
   }
+}
+
+/* ---- UIパターン切替 ---- */
+
+function initUiPatternSwitcher() {
+  var root = document.getElementById("ui-pattern-switcher");
+  if (!root) return;
+  var buttons = root.querySelectorAll(".ui-pattern-dot[data-pattern]");
+  if (!buttons.length) return;
+
+  var pending = false;
+  var selected = root.querySelector(".ui-pattern-dot.is-selected");
+  var lastValue = selected ? selected.dataset.pattern : "";
+
+  function setSelected(pattern) {
+    buttons.forEach(function (btn) {
+      btn.classList.toggle("is-selected", btn.dataset.pattern === pattern);
+    });
+  }
+
+  buttons.forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      if (pending) return;
+      var next = String(btn.dataset.pattern || "").trim();
+      if (!next || next === lastValue) return;
+
+      pending = true;
+      buttons.forEach(function (b) {
+        b.disabled = true;
+      });
+
+      fetch("/api/ui-pattern", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ui_pattern: next }),
+      })
+        .then(function (res) {
+          if (!res.ok) throw new Error("failed");
+          return res.json();
+        })
+        .then(function (data) {
+          if (!data || !data.ok) throw new Error("failed");
+          lastValue = data.ui_pattern || next;
+          setSelected(lastValue);
+          window.location.reload();
+        })
+        .catch(function () {
+          alert("表示スタイルの切替に失敗しました。");
+          setSelected(lastValue);
+        })
+        .finally(function () {
+          pending = false;
+          buttons.forEach(function (b) {
+            b.disabled = false;
+          });
+        });
+    });
+  });
 }
 
 function initPageTableOverflow() {

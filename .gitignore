@@ -217,3 +217,5 @@ data/**
 state/**
 !state/**/
 !state/**/.gitkeep
+
+バックアップ-*/

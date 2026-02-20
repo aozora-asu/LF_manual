@@ -7,6 +7,7 @@ from uuid import uuid4
 from src.common.paths import get_data_dir
 from src.common.logger import get_logger
 from src.wiki_app.models.page import Page
+from src.wiki_app.services.backup_service import BackupService
 from src.wiki_app.services.repo_service import RepoService
 
 logger = get_logger("wiki")
@@ -21,6 +22,13 @@ class PageService:
         self._trash_pages_dir.mkdir(parents=True, exist_ok=True)
         self._trash_index_file = get_data_dir() / "trash" / "trash_index.json"
         self._page_order_file = get_data_dir() / "page_order.json"
+        self._backup = BackupService(self)
+
+    def _refresh_backup(self) -> None:
+        try:
+            self._backup.refresh_latest_backup()
+        except Exception:
+            logger.exception("最新版バックアップの更新に失敗")
 
     def _slug_from_path(self, md_file: Path) -> str:
         """mdファイルパスから階層slugを算出する（例: 日勤/手順書）"""
@@ -46,7 +54,7 @@ class PageService:
         text = md_file.read_text(encoding="utf-8")
         return Page.from_markdown(slug, text)
 
-    def create_page(self, slug: str, title: str, body: str) -> Page:
+    def create_page(self, slug: str, title: str, body: str, run_backup: bool = True) -> Page:
         """ページを新規作成する"""
         now = datetime.now().isoformat(timespec="seconds")
         page = Page(
@@ -66,10 +74,12 @@ class PageService:
             md_text.encode("utf-8"),
             f"Create: {title}",
         )
+        if run_backup:
+            self._refresh_backup()
         logger.info("ページ作成: %s (%s)", slug, title)
         return page
 
-    def update_page(self, slug: str, title: str, body: str) -> Page:
+    def update_page(self, slug: str, title: str, body: str, run_backup: bool = True) -> Page:
         """ページを更新する"""
         existing = self.get_page(slug)
         created = existing.created if existing else datetime.now().isoformat(timespec="seconds")
@@ -91,6 +101,8 @@ class PageService:
             md_text.encode("utf-8"),
             f"Edit: {title}",
         )
+        if run_backup:
+            self._refresh_backup()
         logger.info("ページ更新: %s (%s)", slug, title)
         return page
 
@@ -141,7 +153,7 @@ class PageService:
         items.sort(key=lambda x: x.get("deleted_at", ""), reverse=True)
         return items
 
-    def trash_page(self, slug: str) -> dict | None:
+    def trash_page(self, slug: str, run_backup: bool = True) -> dict | None:
         page = self.get_page(slug)
         if not page:
             return None
@@ -175,6 +187,8 @@ class PageService:
             f"pages/{slug}.md",
             f"Delete: {page.title}",
         )
+        if run_backup:
+            self._refresh_backup()
         logger.info("ページをゴミ箱へ移動: %s (%s)", slug, page.title)
         return {
             "id": trash_id,
@@ -198,7 +212,7 @@ class PageService:
             return {"meta": item, "page": page, "text": text}
         return None
 
-    def restore_trashed_page(self, trash_id: str) -> dict | None:
+    def restore_trashed_page(self, trash_id: str, run_backup: bool = True) -> dict | None:
         data = self.get_trashed_page(trash_id)
         if not data:
             return None
@@ -239,6 +253,8 @@ class PageService:
             text.encode("utf-8"),
             f"Restore: {restored_page.title}",
         )
+        if run_backup:
+            self._refresh_backup()
         logger.info("ゴミ箱から復元: %s -> %s", meta["slug"], target_slug)
         return {
             "id": meta["id"],
@@ -356,10 +372,10 @@ class PageService:
             new_slug = f"{new_slug}-{counter}"
 
         # タイトルを更新してから移動
-        updated = self.update_page(slug, new_title, page.body)
+        updated = self.update_page(slug, new_title, page.body, run_backup=False)
         if not updated:
             return None
-        return self.move_page(slug, new_slug)
+        return self.move_page(slug, new_slug, run_backup=True)
 
     def get_tree(self) -> dict:
         """ページ階層をネストdictで返す（API用）。"""
@@ -732,7 +748,7 @@ class PageService:
                 merged_items.append({"type": "page", "slug": value})
         self._reorder_items(parent, merged_items)
 
-    def move_page(self, old_slug: str, new_slug: str) -> Page | None:
+    def move_page(self, old_slug: str, new_slug: str, run_backup: bool = True) -> Page | None:
         """ページを別の階層に移動する"""
         page = self.get_page(old_slug)
         if not page:
@@ -775,6 +791,8 @@ class PageService:
             md_text.encode("utf-8"),
             f"Move: {page.title} ({old_slug} → {target_slug})",
         )
+        if run_backup:
+            self._refresh_backup()
         logger.info("ページ移動: %s → %s", old_slug, target_slug)
         return Page.from_markdown(target_slug, md_text)
 
@@ -857,11 +875,12 @@ class PageService:
 
         moved: list[dict[str, str]] = []
         for old_slug, new_slug in move_pairs:
-            result = self.move_page(old_slug, new_slug)
+            result = self.move_page(old_slug, new_slug, run_backup=False)
             if not result:
                 return None
             moved.append({"old_slug": old_slug, "new_slug": new_slug})
 
+        self._refresh_backup()
         logger.info("ディレクトリ移動: %s → %s (%s件)", old_dir, new_dir, len(moved))
         return {"old_dir": old_dir, "new_dir": new_dir, "moved": moved}
 

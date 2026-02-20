@@ -1,5 +1,11 @@
 {
   "site_name": "LF リンローマニュアル",
+  "ui_pattern": "latte_notebook",
   "default_page": "home",
-  "markdown_extensions": ["tables", "fenced_code", "nl2br", "md_in_html"]
+  "markdown_extensions": [
+    "tables",
+    "fenced_code",
+    "nl2br",
+    "md_in_html"
+  ]
 }

@@ -856,6 +856,39 @@ document.addEventListener("DOMContentLoaded", () => {
     window.location.href = "/api/export/zip";
   });
 
+  document.getElementById("btn-export-html").addEventListener("click", () => {
+    window.location.href = "/api/export/html";
+  });
+
+  document.getElementById("btn-export-word").addEventListener("click", () => {
+    fetch("/api/export/word")
+      .then(async (res) => {
+        if (!res.ok) {
+          let message = "Wordエクスポートに失敗しました";
+          try {
+            const data = await res.json();
+            if (data && data.error) message = data.error;
+          } catch (_) {}
+          throw new Error(message);
+        }
+        return res.blob();
+      })
+      .then((blob) => {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "wiki_pages_word.zip";
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      })
+      .catch((err) => {
+        const container = document.getElementById("sec-export");
+        showAlert(container, err.message || "Wordエクスポートに失敗しました", "error");
+      });
+  });
+
   document.getElementById("btn-export-pdf").addEventListener("click", () => {
     fetch("/api/config/app")
       .then((r) => r.json())

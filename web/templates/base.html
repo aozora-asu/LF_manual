@@ -8,9 +8,17 @@
       rel="stylesheet"
       href="{{ url_for('static', filename='css/style.css') }}"
     />
+    <link
+      rel="stylesheet"
+      id="ui-pattern-style"
+      href="{{ url_for('static', filename=ui_pattern_css) }}"
+    />
     {% block head %}{% endblock %}
   </head>
-  <body>
+  <body
+    class="ui-pattern ui-pattern-{{ (ui_pattern or 'latte_notebook') | replace('_', '-') }}"
+    data-ui-pattern="{{ ui_pattern or 'latte_notebook' }}"
+  >
     <header class="site-header">
       <div class="header-inner">
         <div class="header-left">
@@ -21,34 +29,55 @@
               <rect y="15" width="20" height="2" rx="1" fill="currentColor" />
             </svg>
           </button>
-          <h1 class="site-title">
-            <a href="{{ url_for('pages.index') }}">{{ site_name }}</a>
-          </h1>
+          <div class="site-brand">
+            <h1 class="site-title">
+              <a href="{{ url_for('pages.index') }}">{{ site_name }}</a>
+            </h1>
+            <p class="site-tagline">読み返しやすい、やさしいマニュアルビュー</p>
+          </div>
         </div>
         <nav class="site-nav">
-          <a href="{{ url_for('pages.page_list') }}">ページ一覧</a>
-          <a href="{{ url_for('pages.new_page') }}">新規作成</a>
-          <div class="watcher-indicator" id="watcher-indicator" title="Web監視">
-            <span class="watcher-dot" id="watcher-dot"></span>
-            <span class="watcher-label" id="watcher-label">監視</span>
+          <div class="site-nav-primary">
+            <a href="{{ url_for('pages.page_list') }}">ページ一覧</a>
+            <a href="{{ url_for('pages.new_page') }}">新規作成</a>
           </div>
-          <div class="search-wrapper">
-            <form
-              class="search-form"
-              action="{{ url_for('search.search') }}"
-              method="get"
+          <div class="site-nav-utility">
+            <div
+              class="ui-pattern-switcher"
+              id="ui-pattern-switcher"
+              role="group"
+              aria-label="表示スタイル"
             >
-              <input
-                type="text"
-                name="q"
-                id="search-input"
-                placeholder="検索..."
-                value="{{ request.args.get('q', '') }}"
-                autocomplete="off"
-              />
-              <button type="submit">検索</button>
-            </form>
-            <div class="search-dropdown" id="search-dropdown"></div>
+              <span class="ui-pattern-label">テーマ:</span>
+              {% for p in ui_pattern_options %}
+              <button
+                type="button"
+                class="ui-pattern-dot {% if p.key == ui_pattern %}is-selected{% endif %}"
+                data-pattern="{{ p.key }}"
+                title="{{ p.label }}"
+                aria-label="{{ p.label }}"
+                style="--pattern-color: {{ p.color }};"
+              ></button>
+              {% endfor %}
+            </div>
+            <div class="search-wrapper">
+              <form
+                class="search-form"
+                action="{{ url_for('search.search') }}"
+                method="get"
+              >
+                <input
+                  type="text"
+                  name="q"
+                  id="search-input"
+                  placeholder="ページを検索..."
+                  value="{{ request.args.get('q', '') }}"
+                  autocomplete="off"
+                />
+                <button type="submit">検索</button>
+              </form>
+              <div class="search-dropdown" id="search-dropdown"></div>
+            </div>
           </div>
         </nav>
       </div>
@@ -57,19 +86,35 @@
       <aside class="sidebar" id="sidebar">
         <div class="sidebar-section">
           <div class="sidebar-section-header">
-            <span>目次</span>
+            <span class="sidebar-section-title">📚 目次</span>
+            <span class="sidebar-section-sub">まずはここからページを選択</span>
+          </div>
+          <div class="sidebar-quick-links">
+            <a href="{{ url_for('pages.index') }}" class="sidebar-quick-link"
+              >ホーム</a
+            >
+            <a
+              href="{{ url_for('pages.page_list') }}"
+              class="sidebar-quick-link"
+              >全ページ</a
+            >
+            <a href="{{ url_for('pages.new_page') }}" class="sidebar-quick-link"
+              >新規作成</a
+            >
           </div>
           <div class="sidebar-tree" id="sidebar-tree"></div>
         </div>
         <div class="sidebar-section">
           <div class="sidebar-section-header">
-            <span>ゴミ箱</span>
+            <span class="sidebar-section-title">🧺 ゴミ箱</span>
+            <span class="sidebar-section-sub">削除したページを管理</span>
           </div>
           <div class="sidebar-trash" id="sidebar-trash"></div>
         </div>
         <div class="sidebar-section">
           <div class="sidebar-section-header">
-            <span>更新履歴</span>
+            <span class="sidebar-section-title">🕘 更新履歴</span>
+            <span class="sidebar-section-sub">最近の変更をチェック</span>
           </div>
           <div class="sidebar-history" id="sidebar-history"></div>
         </div>
@@ -78,7 +123,12 @@
         <section class="watcher-board" id="watcher-board">
           <div class="watcher-board-header">
             <div class="watcher-board-title">
-              <h2>Web監視状況</h2>
+              <div class="watcher-board-heading">
+                <h2>Web監視状況</h2>
+                <p class="watcher-board-lead">
+                  変化があった項目を、ひと目でやさしく確認できます。
+                </p>
+              </div>
               <a class="watcher-config-link" href="{{ admin_url }}#sec-config"
                 >監視条件の変更</a
               >
@@ -171,47 +221,6 @@
         window.addEventListener("pagehide", sendClose);
         window.addEventListener("beforeunload", sendClose);
       })();
-
-      function updateWatcherStatus() {
-        fetch("/api/watcher/status")
-          .then(function (r) {
-            return r.json();
-          })
-          .then(function (data) {
-            var dot = document.getElementById("watcher-dot");
-            var label = document.getElementById("watcher-label");
-            var indicator = document.getElementById("watcher-indicator");
-            if (!dot || !label) return;
-            if (data.running) {
-              if (data.error_count > 0) {
-                dot.className = "watcher-dot watcher-warn";
-                label.textContent = "監視中（異常あり）";
-                indicator.title =
-                  "Web監視: " +
-                  data.target_count +
-                  "件監視中 / " +
-                  data.error_count +
-                  "件エラー\n最終実行: " +
-                  data.last_run;
-              } else {
-                dot.className = "watcher-dot watcher-ok";
-                label.textContent = "監視中";
-                indicator.title =
-                  "Web監視: " +
-                  data.target_count +
-                  "件監視中\n最終実行: " +
-                  data.last_run;
-              }
-            } else {
-              dot.className = "watcher-dot watcher-off";
-              label.textContent = "未稼働";
-              indicator.title = "Web監視: 未稼働";
-            }
-          })
-          .catch(function () {});
-      }
-      updateWatcherStatus();
-      setInterval(updateWatcherStatus, 30000);
     </script>
     {% block scripts %}{% endblock %}
   </body>

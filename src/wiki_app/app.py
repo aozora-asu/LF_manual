@@ -6,7 +6,7 @@ from datetime import datetime
 from flask import Flask, jsonify, request, Response, stream_with_context
 
 from src.common.paths import get_web_dir, get_data_dir, get_state_dir, get_config_dir
-from src.common.config import load_config
+from src.common.config import load_config, save_config
 from src.common.heartbeat import (
     register_session,
     touch_session,
@@ -23,6 +23,39 @@ from src.wiki_app.routes.comments import comments_bp, init_comments
 from src.wiki_app.routes.history import history_bp, init_history
 from src.wiki_app.routes.search import search_bp, init_search
 
+DEFAULT_UI_PATTERN = "latte_notebook"
+UI_PATTERNS: dict[str, dict[str, str]] = {
+    "latte_notebook": {
+        "label": "Pattern 01: Latte Notebook",
+        "css": "css/pattern-latte-notebook.css",
+        "color": "#2f6d62",
+    },
+    "city_pop_guide": {
+        "label": "Pattern 02: City Pop Guide",
+        "css": "css/pattern-city-pop-guide.css",
+        "color": "#e84f83",
+    },
+    "robotic_slate": {
+        "label": "Pattern 04: Robotic Slate",
+        "css": "css/pattern-robotic-slate.css",
+        "color": "#293382",
+    },
+    "midnight_console": {
+        "label": "Pattern 03: Midnight Console",
+        "css": "css/pattern-midnight-console.css",
+        "color": "#3b82f6",
+    },
+    
+}
+
+
+def _normalize_ui_pattern(value: str | None) -> str:
+    key = str(value or "").strip()
+    if key in UI_PATTERNS:
+        return key
+    return DEFAULT_UI_PATTERN
+
+
 def create_app() -> Flask:
     """Flask アプリケーションを構築して返す"""
     web_dir = get_web_dir()
@@ -33,6 +66,24 @@ def create_app() -> Flask:
         static_folder=str(web_dir / "static"),
         static_url_path="/static",
     )
+    app.config["TEMPLATES_AUTO_RELOAD"] = True
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    app.jinja_env.auto_reload = True
+
+    @app.after_request
+    def disable_cache(response):
+        # Ctrl+Rで即時反映できるよう、HTML/CSS/JS/JSONのキャッシュを無効化する。
+        cache_targets = {
+            "text/html",
+            "text/css",
+            "application/javascript",
+            "application/json",
+        }
+        if request.path.startswith("/static/") or response.mimetype in cache_targets:
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
 
     @app.context_processor
     def inject_admin_url():
@@ -40,9 +91,27 @@ def create_app() -> Flask:
             admin_config = load_config("admin")
             host = admin_config.get("host", "127.0.0.1")
             port = admin_config.get("port", 8081)
-            return {"admin_url": f"http://{host}:{port}"}
+            wiki_config = load_config("wiki")
+            ui_pattern = _normalize_ui_pattern(wiki_config.get("ui_pattern"))
+            return {
+                "admin_url": f"http://{host}:{port}",
+                "ui_pattern": ui_pattern,
+                "ui_pattern_css": UI_PATTERNS[ui_pattern]["css"],
+                "ui_pattern_options": [
+                    {"key": key, "label": item["label"], "color": item["color"]}
+                    for key, item in UI_PATTERNS.items()
+                ],
+            }
         except Exception:
-            return {"admin_url": "http://127.0.0.1:8081"}
+            return {
+                "admin_url": "http://127.0.0.1:8081",
+                "ui_pattern": DEFAULT_UI_PATTERN,
+                "ui_pattern_css": UI_PATTERNS[DEFAULT_UI_PATTERN]["css"],
+                "ui_pattern_options": [
+                    {"key": key, "label": item["label"], "color": item["color"]}
+                    for key, item in UI_PATTERNS.items()
+                ],
+            }
 
     repo_service = RepoService(get_data_dir())
     page_service = PageService(repo_service)
@@ -248,6 +317,39 @@ def create_app() -> Flask:
             return jsonify({"ok": False, "error": str(e)}), 500
 
         return jsonify({"ok": True, "window_enabled": config["window_enabled"]})
+
+    @app.route("/api/ui-pattern", methods=["GET", "PUT"])
+    def ui_pattern():
+        try:
+            wiki_config = load_config("wiki")
+        except Exception:
+            wiki_config = {}
+
+        if request.method == "GET":
+            current = _normalize_ui_pattern(wiki_config.get("ui_pattern"))
+            return jsonify(
+                {
+                    "ok": True,
+                    "ui_pattern": current,
+                    "options": [
+                        {"key": key, "label": item["label"], "color": item["color"]}
+                        for key, item in UI_PATTERNS.items()
+                    ],
+                }
+            )
+
+        payload = request.get_json(silent=True) or {}
+        requested = str(payload.get("ui_pattern") or "").strip()
+        if requested not in UI_PATTERNS:
+            return jsonify({"ok": False, "error": "invalid pattern"}), 400
+        pattern = requested
+
+        wiki_config["ui_pattern"] = pattern
+        try:
+            save_config("wiki", wiki_config)
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
+        return jsonify({"ok": True, "ui_pattern": pattern})
 
 
     @app.route("/api/watcher/stream")
