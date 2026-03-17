@@ -8,6 +8,7 @@ import subprocess
 import textwrap
 import threading
 import time
+import uuid
 from datetime import datetime
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -99,9 +100,7 @@ class BackupService:
                     break
                 time.sleep(0.1)
         if backup_dir.exists():
-            backup_old_dir = base_dir / f".backup-old-{date_label}"
-            if backup_old_dir.exists():
-                shutil.rmtree(backup_old_dir, ignore_errors=True)
+            backup_old_dir = base_dir / f".backup-old-{date_label}-{uuid.uuid4().hex[:8]}"
             backup_dir.rename(backup_old_dir)
             shutil.rmtree(backup_old_dir, ignore_errors=True)
         shutil.move(str(staging_dir), str(backup_dir))

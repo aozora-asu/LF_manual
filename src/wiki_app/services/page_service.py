@@ -38,7 +38,8 @@ class PageService:
     def _slug_from_path(self, md_file: Path) -> str:
         """mdファイルパスから階層slugを算出する（例: 日勤/手順書）"""
         rel = md_file.relative_to(self._pages_dir)
-        return str(rel.with_suffix(""))
+        stem = rel.with_suffix("")
+        return "/".join(stem.parts)
 
     def _normalize_path(self, value: str) -> str:
         value = str(value or "").replace("\\", "/").strip()
@@ -67,6 +68,7 @@ class PageService:
 
     def create_page(self, slug: str, title: str, body: str, run_backup: bool = True) -> Page:
         """ページを新規作成する"""
+        slug = self._normalize_path(slug)
         now = datetime.now().isoformat(timespec="seconds")
         page = Page(
             slug=slug,
@@ -93,6 +95,7 @@ class PageService:
 
     def update_page(self, slug: str, title: str, body: str, run_backup: bool = True) -> Page:
         """ページを更新する"""
+        slug = self._normalize_path(slug)
         existing = self.get_page(slug)
         created = existing.created if existing else datetime.now().isoformat(timespec="seconds")
 
@@ -381,6 +384,7 @@ class PageService:
 
     def rename_page(self, slug: str, new_title: str) -> Page | None:
         """ページのタイトルを更新し、slugも新タイトルに合わせて変更する"""
+        slug = self._normalize_path(slug)
         page = self.get_page(slug)
         if not page:
             return None
@@ -733,6 +737,7 @@ class PageService:
         return self._sanitize_order_root(root)
 
     def _find_order_node(self, order_root: dict, path: str) -> dict | None:
+        path = self._normalize_path(path)
         if not path:
             return order_root
         cur = order_root
@@ -750,6 +755,7 @@ class PageService:
         return cur
 
     def _reorder_items(self, parent: str, desired_items: list[dict | str]) -> None:
+        parent = self._normalize_path(parent)
         tree = self.get_tree()
         order_root = self._tree_to_order_root(tree)
         node = self._find_order_node(order_root, parent)
@@ -784,6 +790,7 @@ class PageService:
     def _reorder_items_by_type(
         self, parent: str, desired_items: list[dict | str], kind: str
     ) -> None:
+        parent = self._normalize_path(parent)
         tree = self.get_tree()
         node = self._find_order_node(self._tree_to_order_root(tree), parent)
         if not node:
