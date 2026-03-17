@@ -26,6 +26,11 @@ class PageService:
         self._trash_index_file = get_data_dir() / "trash" / "trash_index.json"
         self._page_order_file = get_data_dir() / "page_order.json"
         self._backup = BackupService(self)
+        try:
+            if self._page_order_file.exists():
+                self._sync_page_order()
+        except Exception:
+            logger.exception("page_order.json の初期同期に失敗")
 
     def _refresh_backup(self) -> None:
         self._backup.schedule_refresh()
@@ -836,6 +841,39 @@ class PageService:
 
         logger.info("ディレクトリ作成: %s", dir_path)
         return {"path": dir_path, "created": created}
+
+    def delete_directory(self, dir_path: str, run_backup: bool = True) -> dict | None:
+        dir_path = str(dir_path or "").strip().strip("/")
+        if not dir_path:
+            return None
+
+        target_dir = self._pages_dir / dir_path
+        if not target_dir.exists() or not target_dir.is_dir():
+            return None
+
+        marker_path = target_dir / self._DIR_MARKER
+        remaining = [child for child in target_dir.iterdir() if child.name != self._DIR_MARKER]
+        if remaining:
+            return None
+
+        if marker_path.exists():
+            try:
+                self._repo.delete(
+                    f"pages/{dir_path}/{self._DIR_MARKER}",
+                    f"Delete: Directory {dir_path}",
+                )
+            except Exception:
+                logger.exception("ディレクトリ削除コミットに失敗: %s", dir_path)
+            marker_path.unlink()
+
+        target_dir.rmdir()
+        self._cleanup_empty_dirs(target_dir.parent)
+        self._sync_page_order()
+        if run_backup:
+            self._refresh_backup()
+
+        logger.info("ディレクトリ削除: %s", dir_path)
+        return {"path": dir_path, "deleted": True}
 
     def move_page(
         self,

@@ -416,10 +416,12 @@ function initSidebar() {
   /* ---- ページ行の生成 ---- */
 
   function createPageRow(p, dirPath) {
+    var pageName = ((p.slug || "").split("/").pop() || "").trim();
     var row = document.createElement("div");
     row.className = "tree-page-row";
     row.draggable = true;
     row.dataset.slug = p.slug;
+    row.dataset.pageName = pageName;
     row.dataset.title = p.title;
     row.dataset.dirPath = dirPath;
 
@@ -466,6 +468,7 @@ function initSidebar() {
       dragState.dragging = {
         type: "page",
         slug: p.slug,
+        pageName: pageName,
         title: p.title,
         element: row,
         dirPath: dirPath,
@@ -489,7 +492,7 @@ function initSidebar() {
       var draggingItemRef = getDraggingItemRef(dragState.dragging);
       if (
         itemRefKey(draggingItemRef) ===
-        itemRefKey({ type: "page", slug: p.slug })
+        itemRefKey({ type: "page", name: pageName })
       )
         return;
       if (isInvalidDirTarget(dragState.dragging, dirPath)) return;
@@ -524,7 +527,7 @@ function initSidebar() {
       var draggingItemRef = getDraggingItemRef(dragState.dragging);
       if (
         itemRefKey(draggingItemRef) ===
-        itemRefKey({ type: "page", slug: p.slug })
+        itemRefKey({ type: "page", name: pageName })
       )
         return;
       if (isInvalidDirTarget(dragState.dragging, dirPath)) return;
@@ -535,7 +538,7 @@ function initSidebar() {
       moveAndPlaceDraggedItem(
         row.parentNode,
         dirPath,
-        { type: "page", slug: p.slug },
+        { type: "page", name: pageName },
         row.dataset.dropPosition || "after",
       );
       delete row.dataset.dropPosition;
@@ -615,14 +618,18 @@ function initSidebar() {
       var name = (dragging.dirName || "").trim();
       return name ? { type: "dir", name: name } : null;
     }
+    var pageName = (dragging.pageName || "").trim();
     var slug = (dragging.slug || "").trim();
-    return slug ? { type: "page", slug: slug } : null;
+    if (!pageName && slug) {
+      pageName = slug.split("/").pop() || "";
+    }
+    return pageName ? { type: "page", name: pageName, slug: slug } : null;
   }
 
   function itemRefKey(itemRef) {
     if (!itemRef || !itemRef.type) return "";
     if (itemRef.type === "dir") return "dir|" + (itemRef.name || "");
-    if (itemRef.type === "page") return "page|" + (itemRef.slug || "");
+    if (itemRef.type === "page") return "page|" + (itemRef.name || itemRef.slug || "");
     return "";
   }
 
@@ -636,8 +643,8 @@ function initSidebar() {
         return;
       }
       if (el.classList.contains("tree-page-row")) {
-        var slug = (el.dataset.slug || "").trim();
-        if (slug) items.push({ type: "page", slug: slug });
+        var pageName = (el.dataset.pageName || "").trim();
+        if (pageName) items.push({ type: "page", name: pageName });
       }
     });
     return items;
@@ -747,9 +754,10 @@ function initSidebar() {
           if (!data.ok) {
             return { ok: false, error: data.error || "" };
           }
+          var movedPageName = ((data.new_slug || nextSlug).split("/").pop() || "").trim();
           return {
             ok: true,
-            movedItemRef: { type: "page", slug: data.new_slug || nextSlug },
+            movedItemRef: { type: "page", name: movedPageName, slug: data.new_slug || nextSlug },
             oldSlug: oldSlug,
             newSlug: data.new_slug || nextSlug,
           };
@@ -922,7 +930,17 @@ function initSidebar() {
       startDirectoryInlineEdit(dirDiv, nameSpan);
     });
 
+    var deleteItem = document.createElement("div");
+    deleteItem.className = "tree-dropdown-item";
+    deleteItem.textContent = "削除";
+    deleteItem.addEventListener("click", function (e) {
+      e.stopPropagation();
+      closeAllDropdowns();
+      deleteDirectory(dirDiv);
+    });
+
     dropdown.appendChild(editItem);
+    dropdown.appendChild(deleteItem);
     label.appendChild(dropdown);
 
     function onClickOutside(e) {
@@ -1041,6 +1059,33 @@ function initSidebar() {
     input.addEventListener("blur", function () {
       finish(true);
     });
+  }
+
+  function deleteDirectory(dirDiv) {
+    if (!dirDiv) return;
+    var dirPath = (dirDiv.dataset.dirPath || "").trim();
+    if (!dirPath) return;
+    if (!confirm("このディレクトリを削除します。")) return;
+
+    fetch("/api/pages/directories", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dir_path: dirPath }),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data.ok) {
+          alert("ディレクトリの削除に失敗しました: " + (data.error || ""));
+          return;
+        }
+        loadTree();
+        loadHistory();
+      })
+      .catch(function () {
+        alert("ディレクトリの削除に失敗しました");
+      });
   }
 
   function startInlineEdit(row, p, linkEl, dirPath) {
