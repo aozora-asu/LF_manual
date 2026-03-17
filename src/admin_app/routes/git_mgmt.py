@@ -1,6 +1,6 @@
 from flask import Blueprint, jsonify
 
-from src.common.paths import get_data_dir
+from src.common.paths import get_history_repo_dir
 from src.common.logger import get_logger
 from src.wiki_app.services.repo_service import RepoService
 
@@ -17,8 +17,8 @@ def init_git(repo_service: RepoService) -> None:
 
 @git_bp.route("/api/git/status")
 def git_status():
-    data_dir = get_data_dir()
-    git_dir = data_dir / ".git"
+    repo_dir = get_history_repo_dir()
+    git_dir = repo_dir / ".git"
 
     checks = {
         "git_dir_exists": git_dir.exists(),

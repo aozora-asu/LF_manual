@@ -12,8 +12,9 @@ _COMMITTER = "LF リンローマニュアル <wiki@local>"
 
 
 class RepoService:
-    def __init__(self, repo_path: Path):
-        self._repo_path = repo_path
+    def __init__(self, source_root: Path, repo_path: Path | None = None):
+        self._source_root = source_root
+        self._repo_path = repo_path or source_root
         self._repo: Repo | None = None
         self._ensure_repo()
 
@@ -45,6 +46,8 @@ class RepoService:
         """ファイルをステージしてコミット。コミットIDを返す。
         ファイル自体は PageService が data/pages/ に書き込み済みの前提。"""
         full_path = self._repo_path / file_path
+        full_path.parent.mkdir(parents=True, exist_ok=True)
+        full_path.write_bytes(content)
 
         porcelain.add(self._repo, paths=[str(full_path)])
 
@@ -138,6 +141,10 @@ class RepoService:
         """ファイルを削除してコミット。コミットIDを返す。"""
         full_path = self._repo_path / file_path
         if full_path.exists():
+            try:
+                full_path.unlink()
+            except IsADirectoryError:
+                shutil.rmtree(full_path)
             porcelain.rm(self._repo, paths=[str(full_path)])
         else:
             porcelain.add(self._repo, paths=[str(full_path)])

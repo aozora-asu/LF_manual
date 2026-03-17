@@ -44,9 +44,48 @@ function initSidebar() {
   var btn = document.getElementById("hamburger-btn");
   var sidebar = document.getElementById("sidebar");
   if (!btn || !sidebar) return;
+  var openDirsStorageKey = "sidebar-open-dirs";
 
   var loaded = false;
   var sidebarOpen = false;
+
+  function readOpenDirs() {
+    try {
+      var raw = sessionStorage.getItem(openDirsStorageKey);
+      var parsed = JSON.parse(raw || "[]");
+      return Array.isArray(parsed) ? parsed : [];
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function writeOpenDirs(paths) {
+    sessionStorage.setItem(openDirsStorageKey, JSON.stringify(paths || []));
+  }
+
+  function captureOpenDirsFromDom(container) {
+    if (!container) return readOpenDirs();
+    var paths = [];
+    container.querySelectorAll(".tree-dir").forEach(function (dirNode) {
+      var dirPath = String(dirNode.dataset.dirPath || "").trim();
+      var children = dirNode.querySelector(".tree-dir-children");
+      if (!dirPath || !children || !children.classList.contains("open")) return;
+      paths.push(dirPath);
+    });
+    return paths;
+  }
+
+  function persistOpenDirs(container) {
+    writeOpenDirs(captureOpenDirsFromDom(container));
+  }
+
+  function rememberOpenDir(dirPath) {
+    var paths = readOpenDirs();
+    if (dirPath && paths.indexOf(dirPath) === -1) {
+      paths.push(dirPath);
+      writeOpenDirs(paths);
+    }
+  }
 
   if (sessionStorage.getItem("sidebar-open") === "true") {
     openSidebar();
@@ -84,17 +123,19 @@ function initSidebar() {
 
   function loadTree() {
     var container = document.getElementById("sidebar-tree");
+    var openDirs = captureOpenDirsFromDom(container);
     fetch("/api/pages/tree", { cache: "no-store" })
       .then(function (res) {
         return res.json();
       })
       .then(function (tree) {
         container.innerHTML = "";
-        renderNode(tree, container, true, "");
+        renderNode(tree, container, true, "", openDirs);
         // ルートにも追加ボタンを配置
         container.appendChild(createAddRow(""));
         // 余白ドロップでもルートに戻せるようにする
         setupDropZone(container, "");
+        persistOpenDirs(container);
       });
   }
 
@@ -103,7 +144,7 @@ function initSidebar() {
 
   /* ---- ノード描画 ---- */
 
-  function renderNode(node, parent, isRoot, currentPath) {
+  function renderNode(node, parent, isRoot, currentPath, openDirs) {
     var children = node.children || {};
     var pages = Array.isArray(node.pages) ? node.pages : [];
     var pageMap = {};
@@ -118,7 +159,7 @@ function initSidebar() {
       Object.keys(children).forEach(function (key) {
         var child = children[key];
         var dirPath = currentPath ? currentPath + "/" + key : key;
-        renderDirectory(child, parent, dirPath);
+        renderDirectory(child, parent, dirPath, openDirs);
       });
       pages.forEach(function (p) {
         parent.appendChild(createPageRow(p, currentPath));
@@ -132,7 +173,7 @@ function initSidebar() {
         var dirName = item.name;
         if (!dirName || !children[dirName]) return;
         var dirPath = currentPath ? currentPath + "/" + dirName : dirName;
-        renderDirectory(children[dirName], parent, dirPath);
+        renderDirectory(children[dirName], parent, dirPath, openDirs);
         return;
       }
       if (item.type === "page") {
@@ -143,7 +184,7 @@ function initSidebar() {
     });
   }
 
-  function renderDirectory(node, parent, dirPath) {
+  function renderDirectory(node, parent, dirPath, openDirs) {
     // dirPathの親パスとディレクトリ名を算出
     var dirParts = dirPath.split("/");
     var dirName = dirParts[dirParts.length - 1];
@@ -204,7 +245,10 @@ function initSidebar() {
 
     // 現在のページがこのディレクトリ内なら自動展開
     var currentSlug = getCurrentSlug();
-    if (currentSlug && currentSlug.indexOf(dirPath + "/") === 0) {
+    if (
+      (currentSlug && currentSlug.indexOf(dirPath + "/") === 0) ||
+      (openDirs || []).indexOf(dirPath) !== -1
+    ) {
       arrow.classList.add("open");
       childrenDiv.classList.add("open");
       folderIcon.innerHTML = SVG.folderOpen;
@@ -217,6 +261,7 @@ function initSidebar() {
       folderIcon.innerHTML = arrow.classList.contains("open")
         ? SVG.folderOpen
         : SVG.folder;
+      persistOpenDirs(document.getElementById("sidebar-tree"));
     });
 
     nameSpan.addEventListener("dblclick", function (e) {
@@ -314,7 +359,7 @@ function initSidebar() {
     dirDiv.appendChild(childrenDiv);
     parent.appendChild(dirDiv);
 
-    renderNode(node, childrenDiv, false, dirPath);
+    renderNode(node, childrenDiv, false, dirPath, openDirs);
     childrenDiv.appendChild(createAddRow(dirPath));
   }
 
@@ -764,6 +809,9 @@ function initSidebar() {
       if (!items) {
         items = buildReorderedItems(container, movedItemRef, null, "after");
       }
+      if (targetParent) {
+        rememberOpenDir(targetParent);
+      }
       requestReorderItems(targetParent, items).then(function () {
         loadTree();
         loadHistory();
@@ -1022,6 +1070,23 @@ function initSidebar() {
         var newTitle = input.value.trim();
         if (newTitle && newTitle !== p.title) {
           var oldSlug = p.slug;
+          var oldTitle = p.title;
+          var currentPath = decodeURIComponent(window.location.pathname);
+          var pageH1 = document.querySelector(".page-header h1");
+          var oldDocTitle = document.title;
+          linkEl.textContent = newTitle;
+          row.dataset.title = newTitle;
+          p.title = newTitle;
+          if (
+            currentPath === "/pages/" + oldSlug ||
+            currentPath === "/"
+          ) {
+            if (pageH1) pageH1.textContent = newTitle;
+            document.title =
+              newTitle +
+              " - " +
+              oldDocTitle.split(" - ").slice(1).join(" - ");
+          }
           fetch("/api/pages/" + encodeSlug(p.slug) + "/title", {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
@@ -1040,12 +1105,10 @@ function initSidebar() {
                 row.dataset.slug = data.slug;
 
                 // 表示中のページならメインエリアのタイトルとURLも更新
-                var currentPath = decodeURIComponent(window.location.pathname);
                 if (
                   currentPath === "/pages/" + oldSlug ||
                   currentPath === "/"
                 ) {
-                  var pageH1 = document.querySelector(".page-header h1");
                   if (pageH1) pageH1.textContent = data.title;
                   document.title =
                     data.title +
@@ -1063,6 +1126,30 @@ function initSidebar() {
                 loadTree();
                 loadHistory();
                 loadTrash();
+              }
+              if (!data.ok) {
+                p.title = oldTitle;
+                linkEl.textContent = oldTitle;
+                row.dataset.title = oldTitle;
+                if (
+                  currentPath === "/pages/" + oldSlug ||
+                  currentPath === "/"
+                ) {
+                  if (pageH1) pageH1.textContent = oldTitle;
+                  document.title = oldDocTitle;
+                }
+              }
+            })
+            .catch(function () {
+              p.title = oldTitle;
+              linkEl.textContent = oldTitle;
+              row.dataset.title = oldTitle;
+              if (
+                currentPath === "/pages/" + oldSlug ||
+                currentPath === "/"
+              ) {
+                if (pageH1) pageH1.textContent = oldTitle;
+                document.title = oldDocTitle;
               }
             });
         }

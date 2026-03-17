@@ -35,6 +35,10 @@ def get_logs_dir() -> Path:
     return get_base_dir() / "logs"
 
 
+def get_history_repo_dir() -> Path:
+    return get_state_dir() / "wiki_history_repo"
+
+
 def ensure_dirs() -> None:
     """data/, state/, logs/ ディレクトリを自動作成する"""
     dirs = [
@@ -42,6 +46,7 @@ def ensure_dirs() -> None:
         get_data_dir() / "images",
         get_data_dir() / "comments",
         get_data_dir() / "trash" / "pages",
+        get_history_repo_dir(),
         get_state_dir() / "watcher" / "snapshots",
         get_state_dir() / "watcher" / "events",
         get_logs_dir(),

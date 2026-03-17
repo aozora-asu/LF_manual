@@ -5,7 +5,7 @@ from datetime import datetime
 
 from flask import Flask, jsonify, request, Response, stream_with_context
 
-from src.common.paths import get_web_dir, get_data_dir, get_state_dir, get_config_dir
+from src.common.paths import get_web_dir, get_data_dir, get_state_dir, get_config_dir, get_history_repo_dir
 from src.common.config import load_config, save_config
 from src.common.heartbeat import (
     register_session,
@@ -113,7 +113,7 @@ def create_app() -> Flask:
                 ],
             }
 
-    repo_service = RepoService(get_data_dir())
+    repo_service = RepoService(get_data_dir(), get_history_repo_dir())
     page_service = PageService(repo_service)
     comment_service = CommentService()
     search_service = SearchService()

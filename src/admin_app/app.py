@@ -3,7 +3,7 @@ import threading
 
 from flask import Flask, jsonify, request
 
-from src.common.paths import get_web_dir, get_data_dir
+from src.common.paths import get_web_dir, get_data_dir, get_history_repo_dir
 from src.common.heartbeat import (
     register_session,
     touch_session,
@@ -52,7 +52,7 @@ def create_admin_app() -> Flask:
             response.headers["Expires"] = "0"
         return response
 
-    repo_service = RepoService(get_data_dir())
+    repo_service = RepoService(get_data_dir(), get_history_repo_dir())
     page_service = PageService(repo_service)
     comment_service = CommentService()
 
