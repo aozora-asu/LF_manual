@@ -500,6 +500,19 @@ def reorder_items_api():
     return jsonify({"ok": True})
 
 
+@pages_bp.route("/api/pages/directories", methods=["POST"])
+def create_directory_api():
+    """空ディレクトリを作成する。"""
+    data = request.get_json(silent=True) or {}
+    dir_path = str(data.get("dir_path", "")).strip().strip("/")
+    if not dir_path:
+        return jsonify({"error": "dir_pathが必要です"}), 400
+    result = _page_service.create_directory(dir_path)
+    if not result:
+        return jsonify({"error": "ディレクトリを作成できませんでした"}), 400
+    return jsonify({"ok": True, **result})
+
+
 @pages_bp.route("/api/pages/<path:slug>/title", methods=["PATCH"])
 def rename_page_api(slug):
     """ページタイトルのみ更新する"""

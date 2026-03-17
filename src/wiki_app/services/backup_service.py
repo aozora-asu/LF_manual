@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import textwrap
+import threading
 from datetime import datetime
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -16,10 +17,12 @@ import markdown as md
 from src.common.config import load_config
 from src.common.logger import get_logger
 from src.common.paths import get_base_dir, get_data_dir, get_web_dir
+from src.common.process import hidden_subprocess_kwargs
 
 logger = get_logger("wiki")
 
 _DEFAULT_UI_PATTERN = "latte_notebook"
+_DIR_MARKER = ".lfdir"
 _UI_PATTERN_CSS: dict[str, str] = {
     "latte_notebook": "pattern-latte-notebook.css",
     "city_pop_guide": "pattern-city-pop-guide.css",
@@ -33,6 +36,34 @@ _INVALID_FILE_PART = re.compile(r'[<>:"/\\|?*\x00-\x1f]')
 class BackupService:
     def __init__(self, page_service):
         self._page_service = page_service
+        self._state_lock = threading.Lock()
+        self._worker: threading.Thread | None = None
+        self._pending = False
+
+    def schedule_refresh(self) -> None:
+        """重複要求をまとめてバックグラウンドで最新版バックアップを更新する。"""
+        with self._state_lock:
+            self._pending = True
+            if self._worker and self._worker.is_alive():
+                return
+            self._worker = threading.Thread(
+                target=self._run_refresh_loop,
+                daemon=True,
+                name="backup-refresh",
+            )
+            self._worker.start()
+
+    def _run_refresh_loop(self) -> None:
+        while True:
+            with self._state_lock:
+                if not self._pending:
+                    self._worker = None
+                    return
+                self._pending = False
+            try:
+                self.refresh_latest_backup()
+            except Exception:
+                logger.exception("最新版バックアップの更新に失敗")
 
     def refresh_latest_backup(self) -> Path:
         """最新版のみのバックアップを日付ディレクトリに再生成する。"""
@@ -72,6 +103,9 @@ class BackupService:
         if not pages_dir.exists():
             return
         shutil.copytree(pages_dir, md_dir, dirs_exist_ok=True)
+        for marker in md_dir.rglob(_DIR_MARKER):
+            if marker.is_file():
+                marker.unlink()
 
     def _export_html(self, html_dir: Path) -> None:
         pages_dir = html_dir / "pages"
@@ -369,6 +403,7 @@ class BackupService:
             capture_output=True,
             text=True,
             timeout=900,
+            **hidden_subprocess_kwargs(),
         )
         if proc.returncode != 0:
             msg = (proc.stderr or proc.stdout or "").strip()

@@ -1093,30 +1093,39 @@ function initSidebar() {
     var row = document.createElement("div");
     row.className = "tree-add-row";
 
-    var btn = document.createElement("button");
-    btn.className = "tree-add-btn";
-    btn.innerHTML = SVG.plus + " <span>ページを追加</span>";
-    btn.addEventListener("click", function () {
-      showInlineAdd(row.parentNode, dirPath);
+    var pageBtn = document.createElement("button");
+    pageBtn.className = "tree-add-btn";
+    pageBtn.innerHTML = SVG.plus + " <span>ページ</span>";
+    pageBtn.addEventListener("click", function () {
+      showInlineAdd(row.parentNode, dirPath, "page");
+    });
+
+    var dirBtn = document.createElement("button");
+    dirBtn.className = "tree-add-btn tree-add-btn-dir";
+    dirBtn.innerHTML = SVG.folder + " <span>ディレクトリ</span>";
+    dirBtn.addEventListener("click", function () {
+      showInlineAdd(row.parentNode, dirPath, "dir");
     });
 
     // すべての階層でドロップを受け付ける（末尾並び替え/階層移動）
     setupDropZone(row, dirPath || "");
 
-    row.appendChild(btn);
+    row.appendChild(pageBtn);
+    row.appendChild(dirBtn);
     return row;
   }
 
-  function showInlineAdd(container, dirPath) {
+  function showInlineAdd(container, dirPath, kind) {
     // 既存のインライン入力を削除
     var existing = container.querySelector(".tree-inline-input");
     if (existing) {
       existing.remove();
-      return;
+      if (existing.dataset.kind === kind) return;
     }
 
     var wrapper = document.createElement("div");
     wrapper.className = "tree-inline-input";
+    wrapper.dataset.kind = kind;
 
     // パスプレビュー
     var preview = document.createElement("div");
@@ -1127,7 +1136,8 @@ function initSidebar() {
 
     var input = document.createElement("input");
     input.type = "text";
-    input.placeholder = "例: 手順書/詳細/新ページ";
+    input.placeholder =
+      kind === "dir" ? "例: 手順書/詳細" : "例: 手順書/詳細/新ページ";
     input.className = "tree-inline-text";
 
     var okBtn = document.createElement("button");
@@ -1147,13 +1157,19 @@ function initSidebar() {
         preview.style.display = "none";
         return;
       }
-      var parsed = parsePathInput(dirPath, val);
-      var fullPath = parsed.directory
-        ? parsed.directory + "/" + parsed.title
-        : parsed.title;
+      var fullPath = "";
+      var icon = kind === "dir" ? SVG.folder : SVG.file;
+      if (kind === "dir") {
+        fullPath = parseDirectoryInput(dirPath, val);
+      } else {
+        var parsed = parsePathInput(dirPath, val);
+        fullPath = parsed.directory
+          ? parsed.directory + "/" + parsed.title
+          : parsed.title;
+      }
       preview.innerHTML =
         '<span class="tree-inline-preview-icon">' +
-        SVG.file +
+        icon +
         "</span> " +
         escapeHtml(fullPath);
       preview.style.display = "flex";
@@ -1164,6 +1180,10 @@ function initSidebar() {
     function doCreate() {
       var val = input.value.trim();
       if (!val) return;
+      if (kind === "dir") {
+        submitQuickCreateDirectory(parseDirectoryInput(dirPath, val));
+        return;
+      }
       var parsed = parsePathInput(dirPath, val);
       submitQuickAdd(parsed.directory, parsed.title);
     }
@@ -1228,6 +1248,18 @@ function initSidebar() {
     return { directory: fullDir, title: title };
   }
 
+  function parseDirectoryInput(baseDirPath, value) {
+    var parts = value
+      .split("/")
+      .map(function (s) {
+        return s.trim();
+      })
+      .filter(Boolean);
+    var extraDir = parts.join("/");
+    if (!extraDir) return baseDirPath || "";
+    return baseDirPath ? baseDirPath + "/" + extraDir : extraDir;
+  }
+
   function submitQuickAdd(dirPath, title) {
     var form = document.createElement("form");
     form.method = "POST";
@@ -1243,6 +1275,28 @@ function initSidebar() {
     });
     document.body.appendChild(form);
     form.submit();
+  }
+
+  function submitQuickCreateDirectory(dirPath) {
+    fetch("/api/pages/directories", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ dir_path: dirPath }),
+    })
+      .then(function (res) {
+        return res.json();
+      })
+      .then(function (data) {
+        if (!data.ok) {
+          alert(data.error || "ディレクトリを作成できませんでした");
+          return;
+        }
+        loadTree();
+        loadHistory();
+      })
+      .catch(function () {
+        alert("ディレクトリを作成できませんでした");
+      });
   }
 
   /* ---- ドロップゾーン設定 ---- */

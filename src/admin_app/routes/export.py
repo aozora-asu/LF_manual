@@ -17,6 +17,7 @@ from flask import Blueprint, jsonify, send_file
 from src.common.paths import get_data_dir, get_web_dir
 from src.common.config import load_config
 from src.common.logger import get_logger
+from src.common.process import hidden_subprocess_kwargs
 from src.wiki_app.services.page_service import PageService
 from src.wiki_app.routes.pages import _render_md
 
@@ -164,6 +165,7 @@ def export_word_zip():
             capture_output=True,
             text=True,
             timeout=600,
+            **hidden_subprocess_kwargs(),
         )
         if proc.returncode != 0:
             msg = (proc.stderr or proc.stdout or "").strip()

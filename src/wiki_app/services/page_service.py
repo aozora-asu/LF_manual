@@ -1,5 +1,6 @@
 import json
 import re
+import shutil
 from pathlib import Path
 from datetime import datetime
 from uuid import uuid4
@@ -14,6 +15,8 @@ logger = get_logger("wiki")
 
 
 class PageService:
+    _DIR_MARKER = ".lfdir"
+
     def __init__(self, repo_service: RepoService):
         self._repo = repo_service
         self._pages_dir = get_data_dir() / "pages"
@@ -25,10 +28,7 @@ class PageService:
         self._backup = BackupService(self)
 
     def _refresh_backup(self) -> None:
-        try:
-            self._backup.refresh_latest_backup()
-        except Exception:
-            logger.exception("最新版バックアップの更新に失敗")
+        self._backup.schedule_refresh()
 
     def _slug_from_path(self, md_file: Path) -> str:
         """mdファイルパスから階層slugを算出する（例: 日勤/手順書）"""
@@ -293,6 +293,8 @@ class PageService:
     def _cleanup_empty_dirs(self, directory: Path) -> None:
         """空のディレクトリを再帰的に削除する（pages_dirまで）"""
         while directory != self._pages_dir and directory.is_dir():
+            if (directory / self._DIR_MARKER).exists():
+                break
             if any(directory.iterdir()):
                 break
             directory.rmdir()
@@ -400,6 +402,15 @@ class PageService:
 
     def _build_fs_tree(self) -> dict:
         tree = {"name": "", "children": {}, "pages": []}
+        for directory in sorted(self._pages_dir.rglob("*")):
+            if not directory.is_dir():
+                continue
+            rel = directory.relative_to(self._pages_dir)
+            node = tree
+            for part in rel.parts:
+                if part not in node["children"]:
+                    node["children"][part] = {"name": part, "children": {}, "pages": []}
+                node = node["children"][part]
         for md_file in self._pages_dir.rglob("*.md"):
             slug = self._slug_from_path(md_file)
             text = md_file.read_text(encoding="utf-8")
@@ -748,6 +759,40 @@ class PageService:
                 merged_items.append({"type": "page", "slug": value})
         self._reorder_items(parent, merged_items)
 
+    def create_directory(self, dir_path: str, run_backup: bool = True) -> dict | None:
+        dir_path = str(dir_path or "").strip().strip("/")
+        if not dir_path:
+            return None
+
+        parts = [part.strip() for part in dir_path.split("/") if part.strip()]
+        if not parts:
+            return None
+
+        target_dir = self._pages_dir.joinpath(*parts)
+        target_dir.mkdir(parents=True, exist_ok=True)
+
+        marker_path = target_dir / self._DIR_MARKER
+        created = False
+        if not marker_path.exists():
+            marker_path.write_text("", encoding="utf-8")
+            created = True
+
+        if created:
+            try:
+                self._repo.commit(
+                    f"pages/{dir_path}/{self._DIR_MARKER}",
+                    b"",
+                    f"Create: Directory {dir_path}",
+                )
+            except Exception:
+                logger.exception("ディレクトリ作成コミットに失敗: %s", dir_path)
+
+        if run_backup:
+            self._refresh_backup()
+
+        logger.info("ディレクトリ作成: %s", dir_path)
+        return {"path": dir_path, "created": created}
+
     def move_page(self, old_slug: str, new_slug: str, run_backup: bool = True) -> Page | None:
         """ページを別の階層に移動する"""
         page = self.get_page(old_slug)
@@ -855,6 +900,7 @@ class PageService:
         old_path = self._pages_dir / old_dir
         if not old_path.exists() or not old_path.is_dir():
             return None
+        old_marker = old_path / self._DIR_MARKER
 
         old_prefix = old_dir + "/"
         slugs: list[str] = []
@@ -864,7 +910,11 @@ class PageService:
                 slugs.append(slug)
         slugs.sort()
         if not slugs:
-            return None
+            new_path.parent.mkdir(parents=True, exist_ok=True)
+            shutil.move(str(old_path), str(new_path))
+            self._refresh_backup()
+            logger.info("空ディレクトリ移動: %s → %s", old_dir, new_dir)
+            return {"old_dir": old_dir, "new_dir": new_dir, "moved": []}
 
         move_pairs: list[tuple[str, str]] = []
         for old_slug in slugs:
@@ -879,6 +929,12 @@ class PageService:
             if not result:
                 return None
             moved.append({"old_slug": old_slug, "new_slug": new_slug})
+
+        if old_marker.exists():
+            new_path.mkdir(parents=True, exist_ok=True)
+            (new_path / self._DIR_MARKER).write_text("", encoding="utf-8")
+            old_marker.unlink()
+            self._cleanup_empty_dirs(old_path)
 
         self._refresh_backup()
         logger.info("ディレクトリ移動: %s → %s (%s件)", old_dir, new_dir, len(moved))
@@ -938,10 +994,10 @@ class PageService:
     def list_directories(self) -> list[str]:
         """全ディレクトリ一覧を返す（新規作成フォーム用）"""
         dirs = set()
-        for md_file in self._pages_dir.rglob("*.md"):
-            rel = md_file.relative_to(self._pages_dir).parent
+        for directory in self._pages_dir.rglob("*"):
+            if not directory.is_dir():
+                continue
+            rel = directory.relative_to(self._pages_dir)
             if str(rel) != ".":
-                parts = rel.parts
-                for i in range(len(parts)):
-                    dirs.add("/".join(parts[: i + 1]))
+                dirs.add("/".join(rel.parts))
         return sorted(dirs)
