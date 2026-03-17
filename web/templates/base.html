@@ -13,6 +13,15 @@
       id="ui-pattern-style"
       href="{{ url_for('static', filename=ui_pattern_css) }}"
     />
+    <script>
+      (function () {
+        try {
+          if (sessionStorage.getItem("sidebar-open") === "true") {
+            document.documentElement.classList.add("sidebar-initial-open");
+          }
+        } catch (e) {}
+      })();
+    </script>
     {% block head %}{% endblock %}
   </head>
   <body

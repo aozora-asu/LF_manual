@@ -179,14 +179,14 @@ body.ui-pattern-robotic-slate .content {
 body.ui-pattern-robotic-slate .watcher-board {
   background: #f8fbff;
   border: 1px solid rgba(148, 163, 184, 0.38);
-  border-radius: 10px;
-  box-shadow: 0 8px 16px rgba(15, 23, 42, 0.08);
-  padding: 16px 18px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  padding: 16px 24px;
 }
 
 body.ui-pattern-robotic-slate .watcher-board-title {
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -201,7 +201,7 @@ body.ui-pattern-robotic-slate .watcher-board-lead {
 }
 
 body.ui-pattern-robotic-slate .watcher-config-link {
-  border-radius: 6px;
+  border-radius: 999px;
   border-color: rgba(37, 99, 235, 0.35);
   background: #fff;
   color: #1e3a8a;
@@ -211,7 +211,7 @@ body.ui-pattern-robotic-slate .watcher-alert-toggle,
 body.ui-pattern-robotic-slate .watcher-night-controls {
   border: 1px solid rgba(148, 163, 184, 0.38);
   background: #fff;
-  border-radius: 6px;
+  border-radius: 999px;
   padding: 5px 10px;
 }
 
@@ -221,7 +221,7 @@ body.ui-pattern-robotic-slate .watcher-night-range input {
 
 body.ui-pattern-robotic-slate .watcher-card {
   border: 1px solid rgba(148, 163, 184, 0.36);
-  border-radius: 8px;
+  border-radius: 10px;
   box-shadow: none;
   background: #fff;
 }

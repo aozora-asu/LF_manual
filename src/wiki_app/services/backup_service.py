@@ -6,9 +6,9 @@ import re
 import shutil
 import subprocess
 import textwrap
+import tempfile
 import threading
 import time
-import uuid
 from datetime import datetime
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -18,7 +18,7 @@ import markdown as md
 
 from src.common.config import load_config
 from src.common.logger import get_logger
-from src.common.paths import get_base_dir, get_data_dir, get_web_dir
+from src.common.paths import get_base_dir, get_data_dir, get_state_dir, get_web_dir
 from src.common.process import hidden_subprocess_kwargs
 
 logger = get_logger("wiki")
@@ -72,41 +72,61 @@ class BackupService:
         date_label = datetime.now().strftime("%Y-%m-%d")
         base_dir = get_base_dir()
         backup_dir = base_dir / f"バックアップ-{date_label}"
-        staging_dir = base_dir / f".backup-staging-{date_label}"
+        work_root = Path(tempfile.mkdtemp(prefix="backup-work-", dir=str(get_state_dir())))
 
-        if staging_dir.exists():
-            shutil.rmtree(staging_dir, ignore_errors=True)
-        staging_dir.mkdir(parents=True, exist_ok=True)
+        try:
+            md_dir = work_root / "md"
+            html_dir = work_root / "html"
+            docs_dir = work_root / "docs"
+            pdf_dir = work_root / "pdf"
+            for directory in (md_dir, html_dir, docs_dir, pdf_dir):
+                directory.mkdir(parents=True, exist_ok=True)
 
-        md_dir = staging_dir / "md"
-        html_dir = staging_dir / "html"
-        docs_dir = staging_dir / "docs"
-        pdf_dir = staging_dir / "pdf"
-        for directory in (md_dir, html_dir, docs_dir, pdf_dir):
-            directory.mkdir(parents=True, exist_ok=True)
+            self._export_markdown(md_dir)
+            self._export_html(html_dir)
+            (html_dir / "html2docs.ps1").write_text(
+                self._html_to_docs_script(),
+                encoding="utf-8",
+            )
+            self._export_docs_and_pdf(html_dir, docs_dir, pdf_dir)
 
-        self._export_markdown(md_dir)
-        self._export_html(html_dir)
-        (html_dir / "html2docs.ps1").write_text(
-            self._html_to_docs_script(),
-            encoding="utf-8",
-        )
-        self._export_docs_and_pdf(html_dir, docs_dir, pdf_dir)
-
-        if backup_dir.exists():
-            shutil.rmtree(backup_dir, ignore_errors=True)
-            for _ in range(20):
-                if not backup_dir.exists():
-                    break
-                time.sleep(0.1)
-        if backup_dir.exists():
-            backup_old_dir = base_dir / f".backup-old-{date_label}-{uuid.uuid4().hex[:8]}"
-            backup_dir.rename(backup_old_dir)
-            shutil.rmtree(backup_old_dir, ignore_errors=True)
-        shutil.move(str(staging_dir), str(backup_dir))
+            backup_dir.mkdir(parents=True, exist_ok=True)
+            self._cleanup_hidden_backup_dirs(base_dir)
+            self._replace_backup_contents(work_root, backup_dir)
+        finally:
+            self._remove_path_with_retry(work_root)
 
         logger.info("最新版バックアップ更新: %s", backup_dir)
         return backup_dir
+
+    def _replace_backup_contents(self, work_root: Path, backup_dir: Path) -> None:
+        expected = ("md", "html", "docs", "pdf")
+        for name in expected:
+            target = backup_dir / name
+            self._remove_path_with_retry(target)
+            source = work_root / name
+            shutil.copytree(source, target, dirs_exist_ok=True)
+
+    def _remove_path_with_retry(self, path: Path, attempts: int = 20) -> None:
+        if not path.exists():
+            return
+        last_error = None
+        for _ in range(attempts):
+            try:
+                if path.is_dir():
+                    shutil.rmtree(path)
+                else:
+                    path.unlink()
+                return
+            except (FileNotFoundError, PermissionError, OSError) as exc:
+                last_error = exc
+                time.sleep(0.2)
+        if path.exists() and last_error:
+            raise last_error
+
+    def _cleanup_hidden_backup_dirs(self, base_dir: Path) -> None:
+        for stale in base_dir.glob(".backup-*"):
+            self._remove_path_with_retry(stale, attempts=5)
 
     def _export_markdown(self, md_dir: Path) -> None:
         pages_dir = get_data_dir() / "pages"

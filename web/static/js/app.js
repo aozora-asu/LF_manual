@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", function () {
   initPageCheckboxes();
   initPageTableOverflow();
   initPageHrAccent();
+  initStickyToolbarOffset();
   initSidebar();
   initLiveSearch();
   initUiPatternSwitcher();
@@ -38,9 +39,27 @@ var dragState = {
   dropTarget: null, // 現在のドロップ先要素
 };
 
+function initStickyToolbarOffset() {
+  function updateToolbarOffset() {
+    var header = document.querySelector(".site-header");
+    var offset = 0;
+    if (header) {
+      offset = Math.ceil(header.getBoundingClientRect().height) + 8;
+    }
+    document.documentElement.style.setProperty(
+      "--sticky-toolbar-top",
+      offset + "px",
+    );
+  }
+
+  updateToolbarOffset();
+  window.addEventListener("resize", updateToolbarOffset);
+}
+
 /* ---- ハンバーガーメニュー / サイドバー ---- */
 
 function initSidebar() {
+  document.documentElement.classList.remove("sidebar-initial-open");
   var btn = document.getElementById("hamburger-btn");
   var sidebar = document.getElementById("sidebar");
   if (!btn || !sidebar) return;

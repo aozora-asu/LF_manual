@@ -203,19 +203,19 @@ body.ui-pattern-latte-notebook .content {
 body.ui-pattern-latte-notebook .watcher-board {
   background: linear-gradient(165deg, #fffdf9 0%, #fff7f1 54%, #f5fbf9 100%);
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 20px;
-  box-shadow: 0 16px 30px rgba(15, 23, 42, 0.08);
-  padding: 18px 20px;
+  border-radius: 12px;
+  box-shadow: 0 2px 10px rgba(15, 23, 42, 0.08);
+  padding: 16px 24px;
 }
 
 body.ui-pattern-latte-notebook .watcher-board-header {
-  align-items: flex-start;
-  gap: 14px;
+  align-items: center;
+  gap: 16px;
 }
 
 body.ui-pattern-latte-notebook .watcher-board-title {
-  align-items: flex-start;
-  gap: 10px;
+  align-items: center;
+  gap: 12px;
   flex-wrap: wrap;
 }
 
@@ -249,9 +249,9 @@ body.ui-pattern-latte-notebook .watcher-night-controls {
 
 body.ui-pattern-latte-notebook .watcher-card {
   border: 1px solid rgba(15, 23, 42, 0.08);
-  border-radius: 14px;
+  border-radius: 10px;
   background: #fff;
-  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.05);
+  box-shadow: none;
 }
 
 body.ui-pattern-latte-notebook .watcher-card.alert {
@@ -340,10 +340,10 @@ body.ui-pattern-latte-notebook .site-footer {
   }
 }
 
-@media (max-width: 960px) {
+@media (max-width: 940px) {
   body.ui-pattern-latte-notebook .watcher-board,
   body.ui-pattern-latte-notebook .content {
-    width: calc(100% - 28px);
+    width: calc(100% - 24px);
   }
 
   body.ui-pattern-latte-notebook .sidebar-quick-links {
