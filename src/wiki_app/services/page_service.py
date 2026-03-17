@@ -40,6 +40,11 @@ class PageService:
         rel = md_file.relative_to(self._pages_dir)
         return str(rel.with_suffix(""))
 
+    def _normalize_path(self, value: str) -> str:
+        value = str(value or "").replace("\\", "/").strip()
+        parts = [part.strip() for part in value.split("/") if part.strip()]
+        return "/".join(parts)
+
     def list_pages(self) -> list[Page]:
         """全ページを一覧で返す（更新日降順）"""
         pages = []
@@ -53,6 +58,7 @@ class PageService:
 
     def get_page(self, slug: str) -> Page | None:
         """スラッグでページを取得する"""
+        slug = self._normalize_path(slug)
         md_file = self._pages_dir / f"{slug}.md"
         if not md_file.exists():
             return None
@@ -189,10 +195,13 @@ class PageService:
         )
         self._save_trash_index(items)
 
-        self._repo.delete(
-            f"pages/{slug}.md",
-            f"Delete: {page.title}",
-        )
+        try:
+            self._repo.delete(
+                f"pages/{slug}.md",
+                f"Delete: {page.title}",
+            )
+        except Exception:
+            logger.exception("ページ削除コミットに失敗: %s", slug)
         self._sync_page_order()
         if run_backup:
             self._refresh_backup()
@@ -255,11 +264,14 @@ class PageService:
         self._save_trash_index(items)
 
         restored_page = Page.from_markdown(target_slug, text)
-        self._repo.commit(
-            f"pages/{target_slug}.md",
-            text.encode("utf-8"),
-            f"Restore: {restored_page.title}",
-        )
+        try:
+            self._repo.commit(
+                f"pages/{target_slug}.md",
+                text.encode("utf-8"),
+                f"Restore: {restored_page.title}",
+            )
+        except Exception:
+            logger.exception("ページ復元コミットに失敗: %s", target_slug)
         self._sync_page_order()
         if run_backup:
             self._refresh_backup()
@@ -310,6 +322,7 @@ class PageService:
 
     def page_exists(self, slug: str) -> bool:
         """スラッグのページが存在するか確認する"""
+        slug = self._normalize_path(slug)
         return (self._pages_dir / f"{slug}.md").exists()
 
     def load_page_order(self) -> dict:
@@ -342,7 +355,10 @@ class PageService:
 
     def reorder_pages(self, directory: str, slugs: list[str]) -> None:
         """互換API: 指定ディレクトリ内のページ順序を保存する。"""
-        desired = [{"type": "page", "slug": s} for s in self._sanitize_str_list(slugs)]
+        desired = [
+            {"type": "page", "name": self._page_name_from_slug(s)}
+            for s in self._sanitize_str_list(slugs)
+        ]
         self._reorder_items_by_type(directory, desired, "page")
         logger.info("ページ並び替え: directory=%s, slugs=%s", directory, slugs)
 
@@ -804,11 +820,11 @@ class PageService:
             if item_kind == "dir":
                 merged_items.append({"type": "dir", "name": value})
             else:
-                merged_items.append({"type": "page", "slug": value})
+                merged_items.append({"type": "page", "name": value})
         self._reorder_items(parent, merged_items)
 
     def create_directory(self, dir_path: str, run_backup: bool = True) -> dict | None:
-        dir_path = str(dir_path or "").strip().strip("/")
+        dir_path = self._normalize_path(dir_path)
         if not dir_path:
             return None
 
@@ -843,7 +859,7 @@ class PageService:
         return {"path": dir_path, "created": created}
 
     def delete_directory(self, dir_path: str, run_backup: bool = True) -> dict | None:
-        dir_path = str(dir_path or "").strip().strip("/")
+        dir_path = self._normalize_path(dir_path)
         if not dir_path:
             return None
 
@@ -851,29 +867,33 @@ class PageService:
         if not target_dir.exists() or not target_dir.is_dir():
             return None
 
-        marker_path = target_dir / self._DIR_MARKER
-        remaining = [child for child in target_dir.iterdir() if child.name != self._DIR_MARKER]
-        if remaining:
-            return None
+        deleted_pages = []
+        for md_file in sorted(target_dir.rglob("*.md"), reverse=True):
+            slug = self._slug_from_path(md_file)
+            result = self.trash_page(slug, run_backup=False)
+            if result:
+                deleted_pages.append(result["slug"])
 
-        if marker_path.exists():
+        for marker_path in sorted(target_dir.rglob(self._DIR_MARKER), reverse=True):
+            rel_marker = marker_path.relative_to(self._pages_dir).as_posix()
             try:
                 self._repo.delete(
-                    f"pages/{dir_path}/{self._DIR_MARKER}",
-                    f"Delete: Directory {dir_path}",
+                    f"pages/{rel_marker}",
+                    f"Delete: Directory {rel_marker.rsplit('/', 1)[0]}",
                 )
             except Exception:
-                logger.exception("ディレクトリ削除コミットに失敗: %s", dir_path)
-            marker_path.unlink()
+                logger.exception("ディレクトリ削除コミットに失敗: %s", rel_marker)
+            marker_path.unlink(missing_ok=True)
 
-        target_dir.rmdir()
+        if target_dir.exists():
+            shutil.rmtree(target_dir)
         self._cleanup_empty_dirs(target_dir.parent)
         self._sync_page_order()
         if run_backup:
             self._refresh_backup()
 
         logger.info("ディレクトリ削除: %s", dir_path)
-        return {"path": dir_path, "deleted": True}
+        return {"path": dir_path, "deleted": True, "deleted_pages": deleted_pages}
 
     def move_page(
         self,
@@ -883,12 +903,14 @@ class PageService:
         sync_order: bool = True,
     ) -> Page | None:
         """ページを別の階層に移動する"""
+        old_slug = self._normalize_path(old_slug)
+        new_slug = self._normalize_path(new_slug)
         page = self.get_page(old_slug)
         if not page:
             return None
         if old_slug == new_slug:
             return page
-        target_slug = str(new_slug or "").strip().strip("/")
+        target_slug = new_slug
         if not target_slug:
             return None
 
@@ -915,15 +937,18 @@ class PageService:
         old_file.unlink()
         self._cleanup_empty_dirs(old_file.parent)
 
-        self._repo.delete(
-            f"pages/{old_slug}.md",
-            f"Move: {page.title} ({old_slug} → {target_slug})",
-        )
-        self._repo.commit(
-            f"pages/{target_slug}.md",
-            md_text.encode("utf-8"),
-            f"Move: {page.title} ({old_slug} → {target_slug})",
-        )
+        try:
+            self._repo.delete(
+                f"pages/{old_slug}.md",
+                f"Move: {page.title} ({old_slug} → {target_slug})",
+            )
+            self._repo.commit(
+                f"pages/{target_slug}.md",
+                md_text.encode("utf-8"),
+                f"Move: {page.title} ({old_slug} → {target_slug})",
+            )
+        except Exception:
+            logger.exception("ページ移動コミットに失敗: %s → %s", old_slug, target_slug)
         if sync_order:
             self._sync_page_order()
         if run_backup:
@@ -933,8 +958,8 @@ class PageService:
 
     def move_directory(self, old_dir: str, target_parent: str) -> dict | None:
         """ディレクトリ配下のページをまとめて別親へ移動する。"""
-        old_dir = str(old_dir or "").strip().strip("/")
-        target_parent = str(target_parent or "").strip().strip("/")
+        old_dir = self._normalize_path(old_dir)
+        target_parent = self._normalize_path(target_parent)
         if not old_dir:
             return None
 
@@ -947,8 +972,8 @@ class PageService:
 
     def rename_directory(self, old_dir: str, new_name: str) -> dict | None:
         """ディレクトリ名を変更する（親階層は維持）。"""
-        old_dir = str(old_dir or "").strip().strip("/")
-        new_name = str(new_name or "").strip().strip("/")
+        old_dir = self._normalize_path(old_dir)
+        new_name = self._normalize_path(new_name)
         if not old_dir or not new_name:
             return None
         if "/" in new_name or "\\" in new_name:
@@ -960,8 +985,8 @@ class PageService:
         return self._move_directory_to(old_dir, requested_new_dir)
 
     def _move_directory_to(self, old_dir: str, requested_new_dir: str) -> dict | None:
-        old_dir = str(old_dir or "").strip().strip("/")
-        requested_new_dir = str(requested_new_dir or "").strip().strip("/")
+        old_dir = self._normalize_path(old_dir)
+        requested_new_dir = self._normalize_path(requested_new_dir)
         if not old_dir or not requested_new_dir:
             return None
         if requested_new_dir == old_dir:

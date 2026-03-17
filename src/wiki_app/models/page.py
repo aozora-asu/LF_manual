@@ -24,9 +24,10 @@ class Page:
     def from_markdown(cls, slug: str, text: str) -> "Page":
         """Markdown テキストから Page を生成する"""
         post = frontmatter.loads(text)
+        fallback_title = str(slug or "").strip("/").split("/")[-1] if slug else ""
         return cls(
             slug=slug,
-            title=post.get("title", slug),
+            title=post.get("title", fallback_title or slug),
             body=post.content,
             created=post.get("created", ""),
             updated=post.get("updated", ""),

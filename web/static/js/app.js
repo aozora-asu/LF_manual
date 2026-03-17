@@ -148,9 +148,14 @@ function initSidebar() {
     var children = node.children || {};
     var pages = Array.isArray(node.pages) ? node.pages : [];
     var pageMap = {};
+    var pageMapByName = {};
     pages.forEach(function (p) {
       if (!p || !p.slug) return;
       pageMap[p.slug] = p;
+      var pageName = ((p.slug || "").split("/").pop() || "").trim();
+      if (pageName && !pageMapByName[pageName]) {
+        pageMapByName[pageName] = p;
+      }
     });
 
     var items = Array.isArray(node.items) ? node.items : null;
@@ -178,8 +183,15 @@ function initSidebar() {
       }
       if (item.type === "page") {
         var slug = item.slug;
-        if (!slug || !pageMap[slug]) return;
-        parent.appendChild(createPageRow(pageMap[slug], currentPath));
+        var pageName = (item.name || "").trim();
+        var page = null;
+        if (slug && pageMap[slug]) {
+          page = pageMap[slug];
+        } else if (pageName && pageMapByName[pageName]) {
+          page = pageMapByName[pageName];
+        }
+        if (!page) return;
+        parent.appendChild(createPageRow(page, currentPath));
       }
     });
   }
