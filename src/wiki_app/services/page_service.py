@@ -74,6 +74,7 @@ class PageService:
             md_text.encode("utf-8"),
             f"Create: {title}",
         )
+        self._sync_page_order()
         if run_backup:
             self._refresh_backup()
         logger.info("ページ作成: %s (%s)", slug, title)
@@ -187,6 +188,7 @@ class PageService:
             f"pages/{slug}.md",
             f"Delete: {page.title}",
         )
+        self._sync_page_order()
         if run_backup:
             self._refresh_backup()
         logger.info("ページをゴミ箱へ移動: %s (%s)", slug, page.title)
@@ -253,6 +255,7 @@ class PageService:
             text.encode("utf-8"),
             f"Restore: {restored_page.title}",
         )
+        self._sync_page_order()
         if run_backup:
             self._refresh_backup()
         logger.info("ゴミ箱から復元: %s -> %s", meta["slug"], target_slug)
@@ -326,6 +329,11 @@ class PageService:
             json.dumps(self._sanitize_order_root(order), ensure_ascii=False, indent=2),
             encoding="utf-8",
         )
+
+    def _sync_page_order(self) -> None:
+        """現在のファイル構造を反映した page_order.json を保存する。"""
+        tree = self.get_tree()
+        self.save_page_order(self._tree_to_order_root(tree))
 
     def reorder_pages(self, directory: str, slugs: list[str]) -> None:
         """互換API: 指定ディレクトリ内のページ順序を保存する。"""
@@ -440,6 +448,12 @@ class PageService:
             out.append(item)
         return out
 
+    def _page_name_from_slug(self, slug: str) -> str:
+        slug = str(slug or "").strip().strip("/")
+        if not slug:
+            return ""
+        return slug.split("/")[-1]
+
     def _item_ref_from_raw(self, raw) -> tuple[str, str] | None:
         """項目参照を (kind, value) で返す。kind は dir/page。"""
         if isinstance(raw, dict):
@@ -448,8 +462,10 @@ class PageService:
                 name = str(raw.get("name", "")).strip()
                 return ("dir", name) if name else None
             if kind == "page":
-                slug = str(raw.get("slug", "")).strip()
-                return ("page", slug) if slug else None
+                name = str(raw.get("name", "")).strip()
+                if not name:
+                    name = self._page_name_from_slug(raw.get("slug", ""))
+                return ("page", name) if name else None
             return None
         if isinstance(raw, str):
             # 旧形式互換: "d:name" / "p:slug"
@@ -458,8 +474,8 @@ class PageService:
                 name = value[2:].strip()
                 return ("dir", name) if name else None
             if value.startswith("p:"):
-                slug = value[2:].strip()
-                return ("page", slug) if slug else None
+                name = self._page_name_from_slug(value[2:].strip())
+                return ("page", name) if name else None
         return None
 
     def _item_ref_from_order_item(self, item: dict) -> tuple[str, str] | None:
@@ -472,8 +488,9 @@ class PageService:
 
     def _sanitize_order_root(self, data) -> dict:
         if not self._is_order_root(data):
-            return {"name": "", "items": []}
+            return {"type": "dir", "name": "", "items": []}
         return {
+            "type": "dir",
             "name": str(data.get("name", "")),
             "items": self._sanitize_order_items(data.get("items", [])),
         }
@@ -488,14 +505,16 @@ class PageService:
                 continue
             kind = item.get("type")
             if kind == "page":
-                slug = str(item.get("slug", "")).strip()
-                if not slug:
+                name = str(item.get("name", "")).strip()
+                if not name:
+                    name = self._page_name_from_slug(item.get("slug", ""))
+                if not name:
                     continue
-                key = ("page", slug)
+                key = ("page", name)
                 if key in seen:
                     continue
                 seen.add(key)
-                out.append({"type": "page", "slug": slug})
+                out.append({"type": "page", "name": name})
                 continue
             if kind == "dir":
                 name = str(item.get("name", "")).strip()
@@ -517,7 +536,7 @@ class PageService:
     def _legacy_map_to_order_root(self, raw, fs_tree: dict) -> dict:
         """旧 map 形式(_dirs/_items)を新 root tree 形式へ変換する。"""
         if not isinstance(raw, dict):
-            return {"name": "", "items": []}
+            return {"type": "dir", "name": "", "items": []}
         legacy = {k: v for k, v in raw.items() if isinstance(k, str)}
 
         def walk(fs_node: dict, current_path: str) -> dict:
@@ -538,12 +557,23 @@ class PageService:
 
             default_items = (
                 [{"type": "dir", "name": d} for d in ordered_dirs]
-                + [{"type": "page", "slug": s} for s in ordered_page_slugs]
+                + [
+                    {
+                        "type": "page",
+                        "name": self._page_name_from_slug(s),
+                        "slug": s,
+                    }
+                    for s in ordered_page_slugs
+                ]
             )
             mixed = self._sanitize_str_list(legacy.get("_items:" + current_path, []))
             if mixed:
                 token_to_item = {
-                    ("d:" + item["name"] if item["type"] == "dir" else "p:" + item["slug"]): item
+                    (
+                        "d:" + item["name"]
+                        if item["type"] == "dir"
+                        else "p:" + item["slug"]
+                    ): item
                     for item in default_items
                 }
                 seen: set[str] = set()
@@ -557,7 +587,11 @@ class PageService:
                     seen.add(token)
                     items.append(item)
                 for item in default_items:
-                    token = "d:" + item["name"] if item["type"] == "dir" else "p:" + item["slug"]
+                    token = (
+                        "d:" + item["name"]
+                        if item["type"] == "dir"
+                        else "p:" + item["slug"]
+                    )
                     if token in seen:
                         continue
                     seen.add(token)
@@ -568,7 +602,7 @@ class PageService:
             out_items: list[dict] = []
             for item in items:
                 if item["type"] == "page":
-                    out_items.append({"type": "page", "slug": item["slug"]})
+                    out_items.append({"type": "page", "name": item["name"]})
                     continue
                 name = item["name"]
                 child = children.get(name)
@@ -578,7 +612,7 @@ class PageService:
                 child_order = walk(child, child_path)
                 out_items.append({"type": "dir", "name": name, "items": child_order["items"]})
 
-            return {"name": fs_node.get("name", ""), "items": out_items}
+            return {"type": "dir", "name": fs_node.get("name", ""), "items": out_items}
 
         return walk(fs_tree, "")
 
@@ -587,7 +621,12 @@ class PageService:
 
         fs_children = dict(fs_node.get("children", {}))
         fs_pages = list(fs_node.get("pages", []))
-        page_by_slug = {p["slug"]: p for p in fs_pages if p.get("slug")}
+        page_by_name = {}
+        for page in fs_pages:
+            slug = page.get("slug")
+            name = self._page_name_from_slug(slug)
+            if name and name not in page_by_name:
+                page_by_name[name] = page
 
         children_out: dict[str, dict] = {}
         pages_out: list[dict] = []
@@ -610,10 +649,14 @@ class PageService:
                 items_out.append({"type": "dir", "name": name})
                 seen_dirs.add(name)
             elif item.get("type") == "page":
-                slug = item.get("slug")
-                if not slug or slug in seen_pages or slug not in page_by_slug:
+                name = str(item.get("name", "")).strip()
+                if not name:
+                    name = self._page_name_from_slug(item.get("slug", ""))
+                page = page_by_name.get(name)
+                slug = page.get("slug") if page else ""
+                if not page or not slug or slug in seen_pages:
                     continue
-                pages_out.append(page_by_slug[slug])
+                pages_out.append(page)
                 items_out.append({"type": "page", "slug": slug})
                 seen_pages.add(slug)
 
@@ -652,7 +695,7 @@ class PageService:
                 if item.get("type") == "page":
                     slug = item.get("slug")
                     if slug:
-                        out_items.append({"type": "page", "slug": slug})
+                        out_items.append({"type": "page", "name": self._page_name_from_slug(slug)})
                 elif item.get("type") == "dir":
                     name = item.get("name")
                     if not name:
@@ -660,7 +703,7 @@ class PageService:
                     child = node.get("children", {}).get(name)
                     child_items = walk(child or {"items": [], "children": {}})["items"]
                     out_items.append({"type": "dir", "name": name, "items": child_items})
-            return {"name": node.get("name", ""), "items": out_items}
+            return {"type": "dir", "name": node.get("name", ""), "items": out_items}
 
         root = walk(tree)
         root["name"] = ""
@@ -787,13 +830,20 @@ class PageService:
             except Exception:
                 logger.exception("ディレクトリ作成コミットに失敗: %s", dir_path)
 
+        self._sync_page_order()
         if run_backup:
             self._refresh_backup()
 
         logger.info("ディレクトリ作成: %s", dir_path)
         return {"path": dir_path, "created": created}
 
-    def move_page(self, old_slug: str, new_slug: str, run_backup: bool = True) -> Page | None:
+    def move_page(
+        self,
+        old_slug: str,
+        new_slug: str,
+        run_backup: bool = True,
+        sync_order: bool = True,
+    ) -> Page | None:
         """ページを別の階層に移動する"""
         page = self.get_page(old_slug)
         if not page:
@@ -836,6 +886,8 @@ class PageService:
             md_text.encode("utf-8"),
             f"Move: {page.title} ({old_slug} → {target_slug})",
         )
+        if sync_order:
+            self._sync_page_order()
         if run_backup:
             self._refresh_backup()
         logger.info("ページ移動: %s → %s", old_slug, target_slug)
@@ -912,6 +964,7 @@ class PageService:
         if not slugs:
             new_path.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(old_path), str(new_path))
+            self._sync_page_order()
             self._refresh_backup()
             logger.info("空ディレクトリ移動: %s → %s", old_dir, new_dir)
             return {"old_dir": old_dir, "new_dir": new_dir, "moved": []}
@@ -925,7 +978,7 @@ class PageService:
 
         moved: list[dict[str, str]] = []
         for old_slug, new_slug in move_pairs:
-            result = self.move_page(old_slug, new_slug, run_backup=False)
+            result = self.move_page(old_slug, new_slug, run_backup=False, sync_order=False)
             if not result:
                 return None
             moved.append({"old_slug": old_slug, "new_slug": new_slug})
@@ -936,6 +989,7 @@ class PageService:
             old_marker.unlink()
             self._cleanup_empty_dirs(old_path)
 
+        self._sync_page_order()
         self._refresh_backup()
         logger.info("ディレクトリ移動: %s → %s (%s件)", old_dir, new_dir, len(moved))
         return {"old_dir": old_dir, "new_dir": new_dir, "moved": moved}
