@@ -475,24 +475,28 @@ class PageService:
             return ""
         return slug.split("/")[-1]
 
+    def _dir_name_from_path(self, path: str) -> str:
+        path = str(path or "").strip().strip("/")
+        if not path:
+            return ""
+        return path.split("/")[-1]
+
     def _item_ref_from_raw(self, raw) -> tuple[str, str] | None:
         """項目参照を (kind, value) で返す。kind は dir/page。"""
         if isinstance(raw, dict):
             kind = str(raw.get("type", "")).strip()
             if kind == "dir":
-                name = str(raw.get("name", "")).strip()
+                name = self._dir_name_from_path(raw.get("name", ""))
                 return ("dir", name) if name else None
             if kind == "page":
-                name = str(raw.get("name", "")).strip()
-                if not name:
-                    name = self._page_name_from_slug(raw.get("slug", ""))
+                name = self._page_name_from_slug(raw.get("name", "") or raw.get("slug", ""))
                 return ("page", name) if name else None
             return None
         if isinstance(raw, str):
             # 旧形式互換: "d:name" / "p:slug"
             value = raw.strip()
             if value.startswith("d:"):
-                name = value[2:].strip()
+                name = self._dir_name_from_path(value[2:].strip())
                 return ("dir", name) if name else None
             if value.startswith("p:"):
                 name = self._page_name_from_slug(value[2:].strip())
@@ -526,9 +530,7 @@ class PageService:
                 continue
             kind = item.get("type")
             if kind == "page":
-                name = str(item.get("name", "")).strip()
-                if not name:
-                    name = self._page_name_from_slug(item.get("slug", ""))
+                name = self._page_name_from_slug(item.get("name", "") or item.get("slug", ""))
                 if not name:
                     continue
                 key = ("page", name)
@@ -538,7 +540,7 @@ class PageService:
                 out.append({"type": "page", "name": name})
                 continue
             if kind == "dir":
-                name = str(item.get("name", "")).strip()
+                name = self._dir_name_from_path(item.get("name", ""))
                 if not name:
                     continue
                 key = ("dir", name)

@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import textwrap
 import threading
+import time
 from datetime import datetime
 from html import escape
 from pathlib import Path, PurePosixPath
@@ -93,7 +94,17 @@ class BackupService:
 
         if backup_dir.exists():
             shutil.rmtree(backup_dir, ignore_errors=True)
-        staging_dir.rename(backup_dir)
+            for _ in range(20):
+                if not backup_dir.exists():
+                    break
+                time.sleep(0.1)
+        if backup_dir.exists():
+            backup_old_dir = base_dir / f".backup-old-{date_label}"
+            if backup_old_dir.exists():
+                shutil.rmtree(backup_old_dir, ignore_errors=True)
+            backup_dir.rename(backup_old_dir)
+            shutil.rmtree(backup_old_dir, ignore_errors=True)
+        shutil.move(str(staging_dir), str(backup_dir))
 
         logger.info("最新版バックアップ更新: %s", backup_dir)
         return backup_dir

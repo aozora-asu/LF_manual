@@ -943,7 +943,7 @@ function initSidebar() {
     });
 
     var deleteItem = document.createElement("div");
-    deleteItem.className = "tree-dropdown-item";
+    deleteItem.className = "tree-dropdown-item tree-dropdown-item-danger";
     deleteItem.textContent = "削除";
     deleteItem.addEventListener("click", function (e) {
       e.stopPropagation();

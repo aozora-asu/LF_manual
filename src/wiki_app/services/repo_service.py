@@ -1,5 +1,7 @@
 import os
 import shutil
+import threading
+import time
 from pathlib import Path
 
 import dulwich.porcelain as porcelain
@@ -16,7 +18,30 @@ class RepoService:
         self._source_root = source_root
         self._repo_path = repo_path or source_root
         self._repo: Repo | None = None
+        self._lock = threading.Lock()
         self._ensure_repo()
+
+    def _commit_with_retry(self, message: str) -> str:
+        last_error = None
+        for _ in range(8):
+            try:
+                commit_id = porcelain.commit(
+                    self._repo,
+                    message=message.encode("utf-8"),
+                    committer=_COMMITTER.encode("utf-8"),
+                    author=_COMMITTER.encode("utf-8"),
+                )
+                return (
+                    commit_id.decode("ascii")
+                    if isinstance(commit_id, bytes)
+                    else str(commit_id)
+                )
+            except PermissionError as exc:
+                last_error = exc
+                time.sleep(0.2)
+        if last_error:
+            raise last_error
+        raise RuntimeError("git commit failed")
 
     def _ensure_repo(self) -> None:
         """リポジトリを開く。存在しなければ init する。
@@ -45,19 +70,12 @@ class RepoService:
     def commit(self, file_path: str, content: bytes, message: str) -> str:
         """ファイルをステージしてコミット。コミットIDを返す。
         ファイル自体は PageService が data/pages/ に書き込み済みの前提。"""
-        full_path = self._repo_path / file_path
-        full_path.parent.mkdir(parents=True, exist_ok=True)
-        full_path.write_bytes(content)
-
-        porcelain.add(self._repo, paths=[str(full_path)])
-
-        commit_id = porcelain.commit(
-            self._repo,
-            message=message.encode("utf-8"),
-            committer=_COMMITTER.encode("utf-8"),
-            author=_COMMITTER.encode("utf-8"),
-        )
-        commit_hex = commit_id.decode("ascii") if isinstance(commit_id, bytes) else str(commit_id)
+        with self._lock:
+            full_path = self._repo_path / file_path
+            full_path.parent.mkdir(parents=True, exist_ok=True)
+            full_path.write_bytes(content)
+            porcelain.add(self._repo, paths=[str(full_path)])
+            commit_hex = self._commit_with_retry(message)
         logger.info("コミット: %s - %s", commit_hex, message)
         return commit_hex
 
@@ -139,22 +157,16 @@ class RepoService:
 
     def delete(self, file_path: str, message: str) -> str:
         """ファイルを削除してコミット。コミットIDを返す。"""
-        full_path = self._repo_path / file_path
-        if full_path.exists():
-            try:
-                full_path.unlink()
-            except IsADirectoryError:
-                shutil.rmtree(full_path)
-            porcelain.rm(self._repo, paths=[str(full_path)])
-        else:
-            porcelain.add(self._repo, paths=[str(full_path)])
-
-        commit_id = porcelain.commit(
-            self._repo,
-            message=message.encode("utf-8"),
-            committer=_COMMITTER.encode("utf-8"),
-            author=_COMMITTER.encode("utf-8"),
-        )
-        commit_hex = commit_id.decode("ascii") if isinstance(commit_id, bytes) else str(commit_id)
+        with self._lock:
+            full_path = self._repo_path / file_path
+            if full_path.exists():
+                try:
+                    full_path.unlink()
+                except IsADirectoryError:
+                    shutil.rmtree(full_path)
+                porcelain.rm(self._repo, paths=[str(full_path)])
+            else:
+                porcelain.add(self._repo, paths=[str(full_path)])
+            commit_hex = self._commit_with_retry(message)
         logger.info("削除コミット: %s - %s", commit_hex, message)
         return commit_hex
